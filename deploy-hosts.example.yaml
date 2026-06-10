@@ -6,13 +6,13 @@
 # Where the agents send alerts. Use the IP, NOT a hostname, so agents don't
 # depend on DNS being correct on every box. The IP must appear in
 # `collector_san_extras` below so TLS validates.
-collector_url: "wss://10.240.19.245:9443/v1/ingest"
+collector_url: "wss://10.0.0.50:9443/v1/ingest"
 
 # Extra DNS names / IPs to add to the collector's server certificate SAN.
 # The collector_url's host MUST be in this list (or be the collector.name).
 collector_san_extras:
-  - 10.240.19.245
-  - LibreNMS-Host
+  - 10.0.0.50
+  - builder-host
   - localhost
   - 127.0.0.1
 
@@ -31,8 +31,8 @@ log_level: info
 # Collector — exactly one host runs monitor-collector.
 # ---------------------------------------------------------------------------
 collector:
-  name: LibreNMS-Host           # used as the cert CN ("<name>.server.crt")
-  host: 10.240.19.245
+  name: builder-host           # used as the cert CN ("<name>.server.crt")
+  host: 10.0.0.50
   user: user
 
 # ---------------------------------------------------------------------------
@@ -41,8 +41,8 @@ collector:
 # system libs needed), so this MUST be a Linux host.
 # ---------------------------------------------------------------------------
 builder:
-  name: LibreNMS-Host
-  host: 10.240.19.245
+  name: builder-host
+  host: 10.0.0.50
   user: user
 
 # ---------------------------------------------------------------------------
@@ -50,8 +50,8 @@ builder:
 # settings (BMC creds, GPU enable, extra tags) go here too.
 # ---------------------------------------------------------------------------
 agents:
-  - name: LibreNMS-Host         # cert CN, must be unique
-    host: 10.240.19.245
+  - name: builder-host        # cert CN, must be unique
+    host: 10.0.0.50
     user: user
     tags:
       dc: lab
@@ -61,8 +61,8 @@ agents:
     #   [modules.thermal]
     #   inlet_warn_c = 28.0
 
-  - name: C2-DH2-R52-CO-S469
-    host: 10.240.19.246
+  - name: test-vm
+    host: 10.0.0.100
     user: user
     tags:
       dc: dc1
@@ -72,13 +72,13 @@ agents:
     # Set HPE_ILO_PASSWORD in your shell env BEFORE running deploy.py
     # (export HPE_ILO_PASSWORD=...) — never commit the password here.
     bmc:
-      url: "https://10.232.12.220"
+      url: "https://10.10.10.100"
       username: monitor
       password_env: HPE_ILO_PASSWORD
       insecure: true            # iLO uses self-signed certs
 
-  - name: C2-DH2-R43-GP-S393    # GPU host
-    host: 10.240.19.247
+  - name: gpu-node-1    # GPU host
+    host: 10.0.0.102
     user: user
     tags:
       dc: dc1
@@ -86,7 +86,7 @@ agents:
       role: ai-training
     gpu_nvidia: true            # turns on the gpu_nvidia module
     bmc:
-      url: "https://10.232.12.221"
+      url: "https://10.10.10.102"
       username: monitor
       password_env: HPE_ILO_PASSWORD
       insecure: true
@@ -113,7 +113,7 @@ webhooks:
   #   host_filter: ".*"                # regex against alert.host (optional)
   #   category_filter: ".*"
   #   rate_limit_per_min: 60
-  #   gui_url: "https://10.240.19.245:8443"
+  #   gui_url: "https://10.0.0.50:8443"
 
   # Example 2: Google Chat space for critical-only escalation
   # - name: oncall-gchat
@@ -121,7 +121,7 @@ webhooks:
   #   url: "https://chat.googleapis.com/v1/spaces/AAAAAAAA/messages?key=...&token=..."
   #   severity_min: critical
   #   states: [firing]
-  #   gui_url: "https://10.240.19.245:8443"
+  #   gui_url: "https://10.0.0.50:8443"
 
   # Example 3: generic JSON POST (alert as-is) for custom pipelines
   # - name: internal-pipeline
