@@ -15,7 +15,7 @@ The merging happens via `combine(recursive=True)` in `templates/agent-config.tom
 ### Example: enable iLO + NVIDIA on one specific host
 
 ```yaml
-# host_vars/proxmox-pve-ha.yml
+# host_vars/baremetal-host-01.yml
 uma_dc:   "dc1"
 uma_role: "ai-training"
 
@@ -25,14 +25,14 @@ uma_modules_overrides:
 
   bmc_redfish:
     enabled: true
-    redfish_url: "https://10.232.12.220"
+    redfish_url: "https://10.0.0.50"
     redfish_username: "monitor"
     redfish_password: "{{ vault_hpe_ilo_password }}"
     redfish_insecure: true
 
   bmc_eventlog:
     enabled: true
-    redfish_url: "https://10.232.12.220"
+    redfish_url: "https://10.0.0.50"
     redfish_username: "monitor"
     redfish_password: "{{ vault_hpe_ilo_password }}"
     redfish_insecure: true
@@ -102,7 +102,7 @@ ansible-playbook -i inventory.ini site.yml --tags pki
 ansible-playbook -i inventory.ini site.yml --tags deploy
 
 # Limit to a single host (useful when debugging one node):
-ansible-playbook -i inventory.ini site.yml --limit proxmox-pve-ha
+ansible-playbook -i inventory.ini site.yml --limit baremetal-host-01
 
 # Dry-run:
 ansible-playbook -i inventory.ini site.yml --check

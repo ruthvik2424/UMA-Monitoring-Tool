@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Ferrous deploy — single-file Python alternative to the Ansible playbooks.
+UMA deploy — single-file Python alternative to the Ansible playbooks.
 
 Usage:
     ./deploy.py status                      Show service status on every host.
@@ -49,7 +49,7 @@ except ImportError:
 # Constants & paths
 # ============================================================================
 
-FERROUS_VERSION = "v3.0.0"  # Current version
+UMA_VERSION = "v3.0.0"  # Current version
 
 ROOT       = Path(__file__).resolve().parent
 CERTS_DIR  = ROOT / "certs" / "out"
@@ -58,7 +58,7 @@ ARTIFACTS  = ROOT / "artifacts"
 SYSTEMD    = ROOT / "systemd"
 HOSTS_YAML = ROOT / "deploy-hosts.yaml"
 
-def get_artifacts_dir(version: str = FERROUS_VERSION) -> Path:
+def get_artifacts_dir(version: str = UMA_VERSION) -> Path:
     """Get version-specific artifacts directory."""
     return ARTIFACTS / version
 
@@ -155,12 +155,12 @@ def load_cfg() -> Cfg:
     # ---- Validation — fail fast on bad collector_url ----
     if not cfg.collector_url:
         err(f"collector_url is missing/empty in {HOSTS_YAML}")
-        err('  example:  collector_url: "wss://10.240.19.245:9443/v1/ingest"')
+        err('  example:  collector_url: "wss://10.0.0.100:9443/v1/ingest"')
         sys.exit(2)
     if "collector.local" in cfg.collector_url:
         err(f"collector_url is set to the agent\u2019s placeholder default 'collector.local' in {HOSTS_YAML}")
         err("  Replace it with the collector's actual IP or DNS name, e.g.")
-        err('    collector_url: "wss://10.240.19.245:9443/v1/ingest"')
+        err('    collector_url: "wss://10.0.0.100:9443/v1/ingest"')
         sys.exit(2)
     if not cfg.collector_url.startswith("wss://"):
         warn(f"collector_url '{cfg.collector_url}' does not start with wss:// \u2014 the agent only speaks WebSocket-over-TLS")
@@ -330,11 +330,11 @@ def cmd_versions(cfg: Cfg, args) -> None:
         if (version_dir / "monitor-collector").exists():
             binaries.append("collector")
         
-        status = " (current)" if v == FERROUS_VERSION else ""
+        status = " (current)" if v == UMA_VERSION else ""
         info(f"  {v}: {', '.join(binaries) if binaries else 'no binaries'}{status}")
 
 def cmd_build(cfg: Cfg, args) -> None:
-    version = getattr(args, 'version', FERROUS_VERSION)
+    version = getattr(args, 'version', UMA_VERSION)
     musl    = getattr(args, 'musl', False)
     b = cfg.builder
     build_type = "musl (static)" if musl else "glibc (dynamic)"
@@ -693,7 +693,7 @@ require_client_cert = true
 # ============================================================================
 
 def cmd_collector(cfg: Cfg, args) -> None:
-    version = getattr(args, 'version', FERROUS_VERSION)
+    version = getattr(args, 'version', UMA_VERSION)
     h = cfg.collector
     info(f"Installing monitor-collector {version} on {h.name} ({h.host})")
 
@@ -758,7 +758,7 @@ def cmd_collector(cfg: Cfg, args) -> None:
 # ============================================================================
 
 def cmd_agent(cfg: Cfg, args) -> None:
-    version = getattr(args, 'version', FERROUS_VERSION)
+    version = getattr(args, 'version', UMA_VERSION)
     targets = cfg.agents
     if args.hosts:
         wanted = set(args.hosts)
@@ -794,7 +794,7 @@ def cmd_agent(cfg: Cfg, args) -> None:
     if fail:
         sys.exit(1)
 
-def install_one_agent(cfg: Cfg, h: HostCfg, version: str = FERROUS_VERSION) -> str:
+def install_one_agent(cfg: Cfg, h: HostCfg, version: str = UMA_VERSION) -> str:
     artifacts_dir = get_artifacts_dir(version)
     agent_bin   = artifacts_dir / "monitor-agent"
     ca_crt      = CERTS_DIR / "ca.crt"
@@ -961,14 +961,14 @@ def cmd_all(cfg: Cfg, args) -> None:
     cmd_build(cfg, args)
     cmd_collector(cfg, args)
     # Pass version through; hosts=[] means all agents
-    cmd_agent(cfg, argparse.Namespace(hosts=[], version=getattr(args, 'version', FERROUS_VERSION)))
+    cmd_agent(cfg, argparse.Namespace(hosts=[], version=getattr(args, 'version', UMA_VERSION)))
 
 # ============================================================================
 # CLI
 # ============================================================================
 
 def main() -> None:
-    p = argparse.ArgumentParser(description="Ferrous deploy", formatter_class=argparse.RawDescriptionHelpFormatter,
+    p = argparse.ArgumentParser(description="UMA deploy", formatter_class=argparse.RawDescriptionHelpFormatter,
                                  epilog=__doc__)
     sp = p.add_subparsers(dest="cmd", required=True)
 

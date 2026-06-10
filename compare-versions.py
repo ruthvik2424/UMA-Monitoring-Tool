@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Compare features available in different Ferrous versions.
+Compare features available in different UMA versions.
 Shows what functionality is enabled/disabled in each version.
 """
 
@@ -54,7 +54,7 @@ def test_features(binary_path, binary_type):
     return features
 
 def main():
-    print("🔍 Ferrous Version Comparison")
+    print("🔍 UMA Version Comparison")
     print("=" * 50)
     
     artifacts_dir = Path("artifacts")

@@ -8,14 +8,14 @@ uma_modules_overrides:
 
   bmc_redfish:
     enabled: true
-    redfish_url: "https://10.232.13.45"
+    redfish_url: "https://10.0.0.51"
     redfish_username: "monitor"
     redfish_password: "{{ vault_dell_idrac_password }}"
     redfish_insecure: true
 
   bmc_eventlog:
     enabled: true
-    redfish_url: "https://10.232.13.45"
+    redfish_url: "https://10.0.0.51"
     redfish_username: "monitor"
     redfish_password: "{{ vault_dell_idrac_password }}"
     redfish_insecure: true

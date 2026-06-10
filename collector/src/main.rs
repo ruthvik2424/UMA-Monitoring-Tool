@@ -36,7 +36,7 @@ use crate::store::Store;
 use crate::ws_ingest::IngestState;
 
 #[derive(Debug, Parser)]
-#[command(name = "monitor-collector", version = VERSION, about = "Ferrous monitoring collector - Central aggregation and web interface")]
+#[command(name = "monitor-collector", version = VERSION, about = "UMA monitoring collector - Central aggregation and web interface")]
 struct Cli {
     #[arg(long, env = "UMA_COLLECTOR_CONFIG", default_value = "/etc/monitor-collector/config.toml")]
     config: PathBuf,

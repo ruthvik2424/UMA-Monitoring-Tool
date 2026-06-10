@@ -18,7 +18,7 @@ name, os_ip, ilo_ip, dc, rack, role [, bmc_user, bmc_pass_env, bmc_insecure]
 EXAMPLE  (hosts.csv):
 ─────────────────────────────────
 name,os_ip,ilo_ip,dc,rack,role
-test-ubuntu-26,10.232.129.18,10.240.1.193,COLO2,R12,test-ubuntu-26.04
+example-host-01,10.0.0.18,10.0.0.193,dc1,R12,example-host-01.04
 web-server-01,192.168.1.10,,DC1,A01,web
 db-primary,10.0.0.5,10.0.1.5,DC2,B03,database,svcacct,LENOVO_ILO_PASSWORD,true
 ─────────────────────────────────

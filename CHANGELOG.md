@@ -20,7 +20,7 @@ Two structured log files now written by the agent (in addition to systemd journa
   Full operational trace: agent startup, module activation, config values loaded,
   alert fired events, connectivity events. Format:
   ```
-  2026-06-08 10:44:27.114 IST  INFO  uma_agent: agent starting host=switch-mgmt
+  2026-06-08 10:44:27.114 IST  INFO  uma_agent: agent starting host=server-01
   2026-06-08 10:44:27.116 IST  INFO  nvme: Module starting (poll=60s)
   2026-06-08 10:44:31.505 IST  INFO  uma_agent::bus: ALERT FIRED severity=critical category=nvme metric=media_errors host=server-01
   2026-06-08 10:44:32.001 IST  ERROR disk_smart: smartctl timed out (30s) on /dev/sdc — drive may be unresponsive

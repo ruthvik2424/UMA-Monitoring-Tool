@@ -1,9 +1,9 @@
 #!/bin/bash
 set -euo pipefail
 
-# Script to build all historical versions of Ferrous with appropriate feature sets
+# Script to build all historical versions of UMA with appropriate feature sets
 
-echo "🔧 Building all Ferrous versions with version-specific features..."
+echo "🔧 Building all UMA versions with version-specific features..."
 
 # Ensure we're in the project root
 cd "$(dirname "$0")"

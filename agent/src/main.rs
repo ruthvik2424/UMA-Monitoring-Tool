@@ -43,7 +43,7 @@ mod vendor_detect;
 use crate::bus::{AlertSink, Outbound};
 
 #[derive(Debug, Parser)]
-#[command(name = "monitor-agent", version = VERSION, about = "Ferrous monitoring agent - Ultra-low latency bare-metal hardware monitoring")]
+#[command(name = "monitor-agent", version = VERSION, about = "UMA monitoring agent - Ultra-low latency bare-metal hardware monitoring")]
 struct Cli {
     #[arg(long, env = "UMA_CONFIG", default_value = "/etc/monitor-agent/config.toml")]
     config: PathBuf,

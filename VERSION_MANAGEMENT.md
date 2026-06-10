@@ -104,7 +104,7 @@ monitor-agent --version
    version = "4.0.0"
    
    # Update deploy.py default
-   FERROUS_VERSION = "v4.0.0"
+   UMA_VERSION = "v4.0.0"
    ```
 
 2. **Build and test:**
