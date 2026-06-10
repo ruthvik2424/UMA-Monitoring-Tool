@@ -1,0 +1,55 @@
+# UMA collector — example configuration.
+# Drop at /etc/monitor-collector/config.toml.
+
+bind_ingest = "0.0.0.0:9443"
+bind_gui    = "0.0.0.0:8443"
+
+# Optional BMC syslog ingest. Configure iLO/iDRAC "Remote Syslog" to point here.
+# bind_syslog_udp = "0.0.0.0:514"
+# bind_syslog_tls = "0.0.0.0:6514"
+
+db_path = "/var/lib/monitor-collector/collector.sqlite"
+retention_days = 30
+offline_after_s = 10
+log_level = "info"
+
+[tls]
+ca_cert     = "/etc/monitor-collector/ca.crt"
+server_cert = "/etc/monitor-collector/server.crt"
+server_key  = "/etc/monitor-collector/server.key"
+require_client_cert = true
+
+# ============================================================================
+# Outbound webhooks — fan alerts to Slack, Google Chat, or any HTTP endpoint.
+# Add as many `[[webhooks]]` blocks as you want; each fires independently.
+# ============================================================================
+
+# Example 1 — Slack channel for the on-call rotation
+# [[webhooks]]
+# name             = "noc-slack"
+# kind             = "slack"
+# url              = "https://hooks.slack.com/services/T01XXXXX/B02YYYYYY/abcdefghijklmnopqrstuvwx"
+# severity_min     = "warning"          # info | warning | critical
+# states           = ["firing"]        # default: firing only — no Slack for resolves
+# notify_on_resolved = false           # OR set true to append "resolved" without listing it
+# host_filter      = ".*"               # regex against alert.host
+# category_filter  = ".*"               # regex against alert.category
+# rate_limit_per_min = 60                # drop messages above this rate
+# gui_url          = "https://collector.dc1:8443"   # adds a "View in UMA" button
+
+# Example 2 — Google Chat space for critical-only escalation
+# [[webhooks]]
+# name         = "oncall-gchat"
+# kind         = "google_chat"
+# url          = "https://chat.googleapis.com/v1/spaces/AAAA.../messages?key=...&token=..."
+# severity_min = "critical"
+# states       = ["firing"]
+# gui_url      = "https://collector.dc1:8443"
+
+# Example 3 — generic JSON POST (the alert object verbatim) for custom pipelines
+# [[webhooks]]
+# name         = "internal-pipeline"
+# kind         = "generic_json"
+# url          = "https://alerts.internal.example.com/ingest"
+# severity_min = "warning"
+# states       = ["firing", "resolved"]

@@ -1,0 +1,54 @@
+# One-time bootstrap to enable Remote Syslog forwarding from each BMC
+# (HPE iLO / Dell iDRAC) to the collector. Idempotent.
+#
+# Inventory expectations:
+#   uma_bmcs   group with `bmc_address`, `bmc_username`, `bmc_password`,
+#              `bmc_vendor` (hpe|dell|supermicro) per host.
+#   uma_collector_syslog_host  / `uma_collector_syslog_port`
+#
+# Run:
+#   ansible-playbook -i inventory.ini configure-bmc.yml --ask-vault-pass
+
+- name: Enable BMC remote syslog forwarding
+  hosts: uma_bmcs
+  gather_facts: false
+  connection: local
+  vars:
+    uma_collector_syslog_host: "collector.dc1.internal"
+    uma_collector_syslog_port: 6514
+
+  tasks:
+    - name: HPE iLO — Redfish PATCH /Managers/1/NetworkProtocol
+      uri:
+        url: "https://{{ bmc_address }}/redfish/v1/Managers/1/NetworkProtocol"
+        method: PATCH
+        user: "{{ bmc_username }}"
+        password: "{{ bmc_password }}"
+        force_basic_auth: true
+        validate_certs: false
+        body_format: json
+        body:
+          Oem:
+            Hpe:
+              RemoteSyslogEnabled: true
+              RemoteSyslogServer: "{{ uma_collector_syslog_host }}"
+              RemoteSyslogPort: "{{ uma_collector_syslog_port }}"
+        status_code: [200, 204]
+      when: bmc_vendor == "hpe"
+
+    - name: Dell iDRAC — Redfish PATCH /Managers/iDRAC.Embedded.1/Attributes
+      uri:
+        url: "https://{{ bmc_address }}/redfish/v1/Managers/iDRAC.Embedded.1/Attributes"
+        method: PATCH
+        user: "{{ bmc_username }}"
+        password: "{{ bmc_password }}"
+        force_basic_auth: true
+        validate_certs: false
+        body_format: json
+        body:
+          Attributes:
+            "SysLog.1.SysLogEnable": "Enabled"
+            "SysLog.1.Server1": "{{ uma_collector_syslog_host }}"
+            "SysLog.1.Port": "{{ uma_collector_syslog_port }}"
+        status_code: [200, 204]
+      when: bmc_vendor == "dell"

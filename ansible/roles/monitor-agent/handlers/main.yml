@@ -1,0 +1,9 @@
+---
+- name: reload systemd
+  systemd:
+    daemon_reload: true
+
+- name: restart monitor-agent
+  systemd:
+    name: monitor-agent
+    state: restarted

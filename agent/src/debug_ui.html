@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>UMA Agent — Debug View</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
+<style>
+:root{
+  --bg:#f1f4f8;--panel:#fff;--panel-2:#f6f8fb;--panel-3:#edf0f5;
+  --text:#111827;--text-2:#374151;--muted:#6b7280;
+  --line:#e5e7eb;--line-soft:#f3f4f6;
+  --ok:#16a34a;--ok-bg:#f0fdf4;
+  --err:#dc2626;--err-bg:#fef2f2;
+  --warn:#d97706;--warn-bg:#fffbeb;
+  --info:#2563eb;--info-bg:#eff6ff;
+  --off:#9ca3af;--off-bg:#f9fafb;
+  --shadow:0 1px 3px rgba(0,0,0,.08),0 1px 2px rgba(0,0,0,.04);
+  --shadow-md:0 4px 12px rgba(0,0,0,.08);
+  --r:10px;--r-sm:7px;
+}
+[data-theme=dark]{
+  --bg:#111318;--panel:#1c1f26;--panel-2:#242830;--panel-3:#2c303d;
+  --text:#e8ecf0;--text-2:#c4cad4;--muted:#7a8394;
+  --line:#2e3240;--line-soft:#232736;
+  --ok:#34d399;--ok-bg:#0d2d1f;
+  --err:#f87171;--err-bg:#2d1515;
+  --warn:#fbbf24;--warn-bg:#2d2005;
+  --info:#60a5fa;--info-bg:#0d1f3d;
+  --off:#6b7280;--off-bg:#1c1f26;
+  --shadow:0 1px 3px rgba(0,0,0,.4);
+  --shadow-md:0 4px 12px rgba(0,0,0,.4);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:var(--bg);color:var(--text);font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
+a{color:var(--info);text-decoration:none}
+
+/* ---- Header ---- */
+.header{
+  display:flex;align-items:center;gap:16px;
+  padding:0 20px;height:52px;
+  background:var(--panel);border-bottom:1px solid var(--line);
+  position:sticky;top:0;z-index:40;box-shadow:var(--shadow);
+}
+.brand{display:flex;align-items:center;gap:8px}
+.brand-icon{color:var(--info)}
+.brand-name{font-size:16px;font-weight:800;letter-spacing:.5px}
+.brand-sub{font-size:12px;color:var(--muted);font-weight:500}
+.header-right{display:flex;align-items:center;gap:10px;margin-left:auto}
+.refresh-btn{
+  display:inline-flex;align-items:center;gap:6px;
+  padding:6px 13px;background:var(--panel-2);color:var(--text);
+  border:1px solid var(--line);border-radius:var(--r-sm);
+  font:500 13px/1 inherit;cursor:pointer;transition:background .15s;
+}
+.refresh-btn:hover{background:var(--panel-3)}
+.theme-btn{
+  display:inline-flex;align-items:center;justify-content:center;
+  width:32px;height:32px;background:transparent;border:1px solid var(--line);
+  border-radius:var(--r-sm);cursor:pointer;color:var(--muted);
+  font-size:15px;transition:background .15s;
+}
+.theme-btn:hover{background:var(--panel-2)}
+.countdown{font-size:12px;color:var(--muted);background:var(--panel-2);
+  border:1px solid var(--line);border-radius:20px;padding:3px 10px}
+
+/* ---- Loading/Error ---- */
+#loading-banner{
+  display:flex;align-items:center;justify-content:center;gap:10px;
+  padding:40px;font-size:15px;color:var(--muted);
+}
+.spinner{
+  width:20px;height:20px;border:2.5px solid var(--line);
+  border-top-color:var(--info);border-radius:50%;
+  animation:spin .7s linear infinite;
+}
+@keyframes spin{to{transform:rotate(360deg)}}
+#error-banner{
+  margin:16px 20px;padding:12px 16px;background:var(--err-bg);
+  border:1px solid rgba(220,38,38,.3);border-radius:var(--r);
+  color:var(--err);font-size:13px;display:none;
+}
+
+/* ---- Main layout ---- */
+.main{padding:18px 20px 40px;max-width:1400px;margin:0 auto;display:flex;flex-direction:column;gap:20px}
+
+/* ---- Summary row ---- */
+.summary-row{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:12px}
+.summary-card{
+  background:var(--panel);border:1px solid var(--line);border-radius:var(--r);
+  padding:14px 16px;box-shadow:var(--shadow);
+}
+.summary-label{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.7px;color:var(--muted);margin-bottom:6px}
+.summary-value{font-size:22px;font-weight:800;color:var(--text)}
+.summary-sub{font-size:12px;color:var(--muted);margin-top:3px}
+.pill{
+  display:inline-block;font-size:11px;font-weight:700;
+  text-transform:uppercase;letter-spacing:.5px;
+  padding:3px 9px;border-radius:20px;
+}
+.pill-ok{color:var(--ok);background:var(--ok-bg);border:1px solid rgba(22,163,74,.2)}
+.pill-warn{color:var(--warn);background:var(--warn-bg);border:1px solid rgba(217,119,6,.2)}
+.pill-err{color:var(--err);background:var(--err-bg);border:1px solid rgba(220,38,38,.2)}
+.pill-off{color:var(--off);background:var(--off-bg);border:1px solid var(--line)}
+.pill-info{color:var(--info);background:var(--info-bg);border:1px solid rgba(37,99,235,.2)}
+
+/* ---- Section header ---- */
+.section-head{
+  display:flex;align-items:center;gap:9px;
+  font-size:14px;font-weight:700;color:var(--text);
+  margin-bottom:12px;
+}
+.section-head svg{color:var(--muted)}
+
+/* ---- Modules flat table ---- */
+.modules-table{
+  background:var(--panel);border:1px solid var(--line);
+  border-radius:var(--r);overflow:hidden;box-shadow:var(--shadow);
+}
+.modules-table-head,.modules-table-row{
+  display:grid;
+  grid-template-columns:180px 90px 1fr;
+  gap:0;align-items:stretch;
+  border-bottom:1px solid var(--line-soft);
+}
+.modules-table-head{
+  background:var(--panel-2);
+  font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:var(--muted);
+  border-bottom:1px solid var(--line);
+}
+.modules-table-head>div,.modules-table-row>div{padding:9px 14px}
+.modules-table-row:last-child{border-bottom:none}
+.modules-table-row:hover{background:var(--panel-2)}
+.mod-name{font-family:ui-monospace,Menlo,monospace;font-weight:700;font-size:13px;align-self:center}
+.mod-status{align-self:center}
+.mod-settings{
+  display:flex;flex-wrap:wrap;gap:6px 16px;align-items:center;
+  border-left:1px solid var(--line-soft);
+}
+.mod-kv{font-size:12px;white-space:nowrap}
+.mod-kv-key{color:var(--muted);font-weight:500}
+.mod-kv-val{color:var(--text);font-family:ui-monospace,monospace;margin-left:4px}
+
+/* ---- Probes ---- */
+.probes-list{display:flex;flex-direction:column;gap:8px}
+.probe-card{
+  background:var(--panel);border:1px solid var(--line);border-radius:var(--r);
+  box-shadow:var(--shadow);overflow:hidden;
+}
+.probe-head{
+  display:flex;align-items:center;gap:10px;
+  padding:10px 14px;cursor:pointer;user-select:none;
+  transition:background .1s;
+}
+.probe-head:hover{background:var(--panel-2)}
+.probe-cmd{
+  flex:1;font-family:ui-monospace,'SF Mono',Menlo,Consolas,monospace;
+  font-size:12.5px;color:var(--text-2);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.exit-badge{
+  font-size:11px;font-weight:700;padding:2px 8px;border-radius:4px;
+  flex-shrink:0;font-family:ui-monospace,monospace;
+}
+.exit-0{color:var(--ok);background:var(--ok-bg);border:1px solid rgba(22,163,74,.2)}
+.exit-nonzero{color:var(--err);background:var(--err-bg);border:1px solid rgba(220,38,38,.2)}
+.exit-null{color:var(--warn);background:var(--warn-bg);border:1px solid rgba(217,119,6,.2)}
+.probe-chevron{color:var(--muted);transition:transform .15s;flex-shrink:0}
+.probe-card.open .probe-chevron{transform:rotate(90deg)}
+.probe-body{
+  display:none;padding:0 14px 14px;
+  border-top:1px solid var(--line-soft);
+}
+.probe-card.open .probe-body{display:block}
+.stream-label{
+  font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;
+  color:var(--muted);margin:10px 0 4px;
+}
+.stream-label.stderr-label{color:var(--err)}
+.code-block{
+  background:var(--panel-3);border:1px solid var(--line);border-radius:var(--r-sm);
+  padding:10px 12px;font-family:ui-monospace,'SF Mono',Menlo,Consolas,monospace;
+  font-size:12px;line-height:1.65;white-space:pre-wrap;word-break:break-word;
+  color:var(--text-2);max-height:320px;overflow-y:auto;
+}
+.code-block.empty{color:var(--muted);font-style:italic}
+.error-inline{
+  margin-top:8px;padding:8px 12px;background:var(--err-bg);
+  border:1px solid rgba(220,38,38,.2);border-radius:var(--r-sm);
+  color:var(--err);font-size:12.5px;
+}
+
+/* ---- Syslog rules table ---- */
+.rules-table{
+  background:var(--panel);border:1px solid var(--line);
+  border-radius:var(--r);overflow:hidden;box-shadow:var(--shadow);
+}
+.rules-head,.rules-row{
+  display:grid;
+  grid-template-columns:160px 80px 120px 1fr;
+  gap:12px;align-items:start;
+  padding:9px 14px;border-bottom:1px solid var(--line-soft);
+  font-size:13px;
+}
+.rules-head{
+  background:var(--panel-2);color:var(--muted);
+  font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;
+  border-bottom:1px solid var(--line);align-items:center;
+}
+.rules-row:last-child{border-bottom:none}
+.rule-name{font-weight:600;font-family:ui-monospace,monospace;font-size:12px}
+.rule-regex{
+  font-family:ui-monospace,monospace;font-size:11.5px;color:var(--muted);
+  word-break:break-all;line-height:1.4;
+}
+.rule-title{font-size:12.5px}
+
+/* ---- Tags ---- */
+.tags-row{display:flex;flex-wrap:wrap;gap:7px}
+.tag-chip{
+  font-size:12px;font-weight:500;
+  background:var(--panel-2);border:1px solid var(--line);
+  border-radius:20px;padding:3px 10px;
+  font-family:ui-monospace,monospace;
+}
+.tag-key{color:var(--muted)}
+.tag-val{color:var(--text)}
+
+/* ---- Footer ---- */
+.footer{
+  text-align:center;font-size:11.5px;color:var(--muted);
+  padding:20px;border-top:1px solid var(--line-soft);margin-top:8px;
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="brand">
+    <svg class="brand-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+    <div>
+      <div class="brand-name">UMA Agent</div>
+      <div class="brand-sub" id="hdr-host">Loading…</div>
+    </div>
+  </div>
+  <div class="header-right">
+    <span class="countdown" id="countdown">Refreshing…</span>
+    <button class="refresh-btn" onclick="loadData()">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+      Refresh now
+    </button>
+    <button class="theme-btn" id="theme-btn" title="Toggle dark/light mode">☾</button>
+  </div>
+</div>
+
+<div id="loading-banner">
+  <div class="spinner"></div>
+  Loading agent data…
+</div>
+<div id="error-banner"></div>
+
+<div class="main" id="main" style="display:none">
+
+  <!-- Summary row -->
+  <div class="summary-row" id="summary-row"></div>
+
+  <!-- Probes — FIRST, most important -->
+  <div>
+    <div class="section-head">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+      Live Probe Results
+      <span style="font-size:12px;font-weight:400;color:var(--muted);margin-left:6px">commands run by the agent with actual output — failures auto-expand</span>
+    </div>
+    <div class="probes-list" id="probes-list"></div>
+  </div>
+
+  <!-- Syslog rules -->
+  <div id="rules-section">
+    <div class="section-head">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+      Syslog / Kmsg Rules
+    </div>
+    <div id="rules-container"></div>
+  </div>
+
+  <!-- Tags -->
+  <div id="tags-section">
+    <div class="section-head">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
+      Host Tags
+    </div>
+    <div class="tags-row" id="tags-row"></div>
+  </div>
+
+  <!-- Modules — at the bottom, flat table -->
+  <div>
+    <div class="section-head">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="6" height="6"/><rect x="9" y="3" width="6" height="6"/><rect x="16" y="3" width="6" height="6"/><rect x="2" y="10" width="6" height="6"/><rect x="9" y="10" width="6" height="6"/><rect x="16" y="10" width="6" height="6"/></svg>
+      Monitoring Module Config
+      <span style="font-size:12px;font-weight:400;color:var(--muted);margin-left:6px">effective thresholds loaded from config.toml</span>
+    </div>
+    <div class="modules-table" id="modules-table"></div>
+  </div>
+
+</div>
+
+<div class="footer">UMA Agent Debug View — data sourced from <code>GET /v1/debug/snapshot</code> — loopback only</div>
+
+<script>
+const REFRESH_S = 30;
+let timer, countdown_val = REFRESH_S;
+
+/* ---- Theme ---- */
+let theme = localStorage.getItem('uma-debug-theme') || 'light';
+function applyTheme(t) {
+  theme = t;
+  document.documentElement.setAttribute('data-theme', t);
+  document.getElementById('theme-btn').textContent = t === 'dark' ? '☀' : '☾';
+  localStorage.setItem('uma-debug-theme', t);
+}
+document.getElementById('theme-btn').onclick = () => applyTheme(theme === 'dark' ? 'light' : 'dark');
+applyTheme(theme);
+
+/* ---- Helpers ---- */
+const esc = s => String(s == null ? '' : s)
+  .replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;');
+
+function severityPill(sev) {
+  const m = { critical: 'pill-err', warning: 'pill-warn', info: 'pill-info' };
+  return `<span class="pill ${m[sev] || 'pill-off'}">${esc(sev)}</span>`;
+}
+
+/* ---- Load & render ---- */
+async function loadData() {
+  resetCountdown();
+  document.getElementById('error-banner').style.display = 'none';
+  try {
+    const r = await fetch('/v1/debug/snapshot');
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const d = await r.json();
+    document.getElementById('loading-banner').style.display = 'none';
+    document.getElementById('main').style.display = 'flex';
+    render(d);
+  } catch(e) {
+    document.getElementById('loading-banner').style.display = 'none';
+    const eb = document.getElementById('error-banner');
+    eb.textContent = `Failed to load: ${e.message}`;
+    eb.style.display = 'block';
+  }
+}
+
+function render(d) {
+  const h = d.host || {};
+  document.getElementById('hdr-host').textContent =
+    `${h.hostname || '—'} — ${h.primary_ip || '—'}`;
+
+  renderSummary(d);
+  renderProbes(d.probes || []);       // first — most actionable
+  renderRules(d.syslog_rules);
+  renderTags(d.tags || {});
+  renderModules(d.modules_effective || {}); // last — config reference
+}
+
+function renderSummary(d) {
+  const h = d.host || {};
+  const mods = d.modules_effective || {};
+  const enabled  = Object.values(mods).filter(m => m.enabled !== false).length;
+  const total    = Object.keys(mods).length;
+  const at = d.generated_at ? new Date(d.generated_at).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false}) : '—';
+
+  const maintenance = d.maintenance_mode;
+  const cards = [
+    { label:'Hostname',     value: esc(h.hostname || '—'),     sub: '' },
+    { label:'IP Address',   value: `<span style="font-family:monospace;font-size:16px">${esc(h.primary_ip || '—')}</span>`, sub: '' },
+    { label:'Modules Active', value: `${enabled}/${total}`, sub: enabled < total ? `${total - enabled} disabled` : 'all enabled' },
+    { label:'Maintenance',  value: maintenance
+        ? '<span class="pill pill-warn">ACTIVE</span>'
+        : '<span class="pill pill-ok">Normal</span>',
+      sub: maintenance ? 'Alerts suppressed' : 'Sending alerts' },
+    { label:'Snapshot Time', value: `<span style="font-size:16px">${at}</span>`, sub: esc(d.generated_at || '').slice(0,10) },
+  ];
+  document.getElementById('summary-row').innerHTML = cards.map(c => `
+    <div class="summary-card">
+      <div class="summary-label">${c.label}</div>
+      <div class="summary-value">${c.value}</div>
+      ${c.sub ? `<div class="summary-sub">${c.sub}</div>` : ''}
+    </div>
+  `).join('');
+}
+
+function renderModules(mods) {
+  const SKIP = new Set(['enabled', 'rules', 'ignore_regex']);
+  const LABELS = {
+    poll_s:'poll', ce_per_hour_warn:'CE warn/hr',
+    wear_warn_pct:'wear warn%', wear_critical_pct:'wear crit%',
+    temp_warn_c:'temp warn°C', temp_critical_c:'temp crit°C',
+    inlet_warn_c:'inlet warn°C', inlet_critical_c:'inlet crit°C', inlet_emergency_c:'inlet emerg°C',
+    flap_threshold:'flap thresh', flap_window_s:'flap win(s)',
+    counter_poll_s:'ctr poll(s)', corrected_per_min_warn:'PCIe corr/min',
+    psi_some_avg10_warn:'PSI avg10', sustain_s:'sustain(s)',
+    oom_storm_count:'OOM storm#', oom_storm_window_s:'OOM win(s)',
+    edac_sysfs_enable:'EDAC sysfs', ipmi_sdr_enable:'IPMI SDR',
+    redfish_url:'redfish URL', redfish_username:'redfish user', ipmi_device:'IPMI dev',
+    watch_ceph_osd:'ceph OSD', correlate_window_s:'correlate(s)',
+  };
+
+  const head = `<div class="modules-table-head">
+    <div>Module</div><div>Status</div><div>Settings</div>
+  </div>`;
+
+  const rows = Object.entries(mods).map(([name, cfg]) => {
+    const enabled = cfg.enabled !== false;
+    const pill = enabled
+      ? '<span class="pill pill-ok" style="font-size:10.5px">Enabled</span>'
+      : '<span class="pill pill-off" style="font-size:10.5px">Disabled</span>';
+
+    const kvParts = Object.entries(cfg)
+      .filter(([k, v]) => !SKIP.has(k) && typeof v !== 'object')
+      .map(([k, v]) => {
+        const label = LABELS[k] || k.replaceAll('_',' ');
+        let val = String(v);
+        if (k === 'redfish_password') val = '***';
+        if (typeof v === 'boolean') val = v
+          ? '<span style="color:var(--ok)">yes</span>'
+          : '<span style="color:var(--off)">no</span>';
+        return `<span class="mod-kv"><span class="mod-kv-key">${esc(label)}:</span><span class="mod-kv-val">${val}</span></span>`;
+      }).join('');
+
+    return `<div class="modules-table-row">
+      <div class="mod-name" style="${enabled ? '' : 'opacity:.55'}">${esc(name)}</div>
+      <div class="mod-status">${pill}</div>
+      <div class="mod-settings">${kvParts || '<span style="color:var(--muted);font-size:12px">no settings</span>'}</div>
+    </div>`;
+  }).join('');
+
+  document.getElementById('modules-table').innerHTML =
+    `<div class="modules-table">${head}${rows}</div>` ||
+    '<div style="color:var(--muted)">No modules</div>';
+}
+
+function renderProbes(probes) {
+  const html = probes.map((p, i) => {
+    const code = p.exit_code;
+    let badgeClass = 'exit-null';
+    let badgeText = 'timeout';
+    if (code === 0) { badgeClass = 'exit-0'; badgeText = 'exit 0'; }
+    else if (code != null) { badgeClass = 'exit-nonzero'; badgeText = `exit ${code}`; }
+
+    const cmdDisplay = p.what || (p.argv ? p.argv.join(' ') : p.name);
+
+    const stdoutHtml = p.error
+      ? `<div class="error-inline">Error: ${esc(p.error)}</div>`
+      : `<div class="stream-label">stdout</div>
+         <pre class="code-block ${!p.stdout ? 'empty' : ''}">${p.stdout ? esc(p.stdout) : '(empty)'}</pre>`;
+
+    const stderrHtml = (p.stderr && p.stderr.trim())
+      ? `<div class="stream-label stderr-label">stderr</div>
+         <pre class="code-block">${esc(p.stderr)}</pre>`
+      : '';
+
+    return `<div class="probe-card" id="probe-${i}">
+      <div class="probe-head" onclick="toggleProbe(${i})">
+        <svg class="probe-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+        <span class="probe-cmd" title="${esc(cmdDisplay)}">${esc(cmdDisplay)}</span>
+        <span class="exit-badge ${badgeClass}">${badgeText}</span>
+      </div>
+      <div class="probe-body">
+        <div style="font-size:11px;color:var(--muted);margin-bottom:8px;font-weight:600">
+          PROBE: <code style="font-size:11px">${esc(p.name)}</code>
+        </div>
+        ${stdoutHtml}
+        ${stderrHtml}
+      </div>
+    </div>`;
+  }).join('');
+
+  const el = document.getElementById('probes-list');
+  el.innerHTML = html || '<div style="color:var(--muted);padding:12px">No probes ran</div>';
+
+  // Auto-expand probes with errors or non-zero exit codes
+  probes.forEach((p, i) => {
+    if (p.exit_code !== 0 || p.error) {
+      const card = document.getElementById(`probe-${i}`);
+      if (card) card.classList.add('open');
+    }
+  });
+}
+
+function toggleProbe(i) {
+  const card = document.getElementById(`probe-${i}`);
+  if (card) card.classList.toggle('open');
+}
+
+function renderRules(syslogCfg) {
+  const rules = syslogCfg?.rules || [];
+  if (!rules.length) {
+    document.getElementById('rules-section').style.display = 'none';
+    return;
+  }
+  const rows = rules.map(r => `
+    <div class="rules-row">
+      <div>
+        <div class="rule-name">${esc(r.name)}</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:2px">${esc(r.category)}</div>
+      </div>
+      <div>${severityPill(r.severity)}</div>
+      <div class="rule-title">${esc(r.title)}</div>
+      <div class="rule-regex">${esc(r.regex)}</div>
+    </div>`).join('');
+
+  document.getElementById('rules-container').innerHTML = `
+    <div class="rules-table">
+      <div class="rules-head"><div>Name</div><div>Severity</div><div>Title</div><div>Regex</div></div>
+      ${rows}
+    </div>`;
+}
+
+function renderTags(tags) {
+  const entries = Object.entries(tags);
+  if (!entries.length) {
+    document.getElementById('tags-section').style.display = 'none';
+    return;
+  }
+  document.getElementById('tags-row').innerHTML = entries
+    .map(([k, v]) => `<span class="tag-chip"><span class="tag-key">${esc(k)}=</span><span class="tag-val">${esc(v)}</span></span>`)
+    .join('');
+}
+
+/* ---- Auto-refresh countdown ---- */
+function resetCountdown() {
+  countdown_val = REFRESH_S;
+  clearInterval(timer);
+  updateCountdownDisplay();
+  timer = setInterval(() => {
+    countdown_val--;
+    updateCountdownDisplay();
+    if (countdown_val <= 0) loadData();
+  }, 1000);
+}
+function updateCountdownDisplay() {
+  const el = document.getElementById('countdown');
+  if (el) el.textContent = countdown_val > 0 ? `Refresh in ${countdown_val}s` : 'Refreshing…';
+}
+
+/* ---- Boot ---- */
+loadData();
+</script>
+</body>
+</html>

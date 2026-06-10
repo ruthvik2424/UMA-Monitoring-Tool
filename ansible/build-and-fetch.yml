@@ -1,0 +1,133 @@
+---
+# Build the binaries on a designated builder host (must be Linux), then
+# fetch them back to the controller (Mac is fine). Subsequent installs
+# use the cached artifacts — no per-target rebuild.
+#
+# Inventory: define ONE host in [uma_builder]. It can be any Linux box
+# with SSH access; doesn't even need to run the agent itself. The builder's
+# glibc determines minimum supported glibc on agent hosts (build on the
+# OLDEST distro you support; binaries are forward-compatible).
+#
+# Run:
+#   ansible-playbook -i inventory.fleet.ini build-and-fetch.yml
+#
+# Outputs:
+#   artifacts/monitor-agent      (~10 MB)
+#   artifacts/monitor-collector  (~12 MB)
+
+- name: Build UMA binaries on the designated builder host
+  hosts: uma_builder
+  gather_facts: true
+  vars:
+    target_user: "{{ ansible_user }}"
+    uma_repo_remote: "/home/{{ target_user }}/ultimate-monitoring-agent"
+    uma_release_dir: "{{ uma_repo_remote }}/target/release"
+
+  tasks:
+    - name: Install build deps (one-time)
+      become: true
+      apt:
+        update_cache: true
+        cache_valid_time: 86400
+        name:
+          - pkg-config
+          - build-essential
+          - libssl-dev
+          - libudev-dev
+          - libdbus-1-dev
+          - libsqlite3-dev
+          - curl
+
+    - name: Check for cargo
+      stat:
+        path: "/home/{{ target_user }}/.cargo/bin/cargo"
+      register: cargo_stat
+
+    - name: Install rustup (one-time)
+      become_user: "{{ target_user }}"
+      shell: |
+        curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable --profile minimal
+      when: not cargo_stat.stat.exists
+      args:
+        creates: "/home/{{ target_user }}/.cargo/bin/cargo"
+
+    - name: Sync source if missing on builder
+      synchronize:
+        src: "{{ playbook_dir }}/../"
+        dest: "{{ uma_repo_remote }}/"
+        rsync_opts:
+          - "--exclude=target/"
+          - "--exclude=.git/"
+          - "--exclude=.DS_Store"
+          - "--exclude=*.db"
+          - "--exclude=*.log"
+          - "--exclude=artifacts/"
+        delete: false
+      when: not (ansible_check_mode | default(false))
+
+    - name: cargo build --release --workspace
+      become_user: "{{ target_user }}"
+      shell: |
+        source $HOME/.cargo/env
+        cargo build --release --workspace
+      args:
+        chdir: "{{ uma_repo_remote }}"
+        executable: /bin/bash
+      register: cargo_out
+      changed_when: "'Compiling' in cargo_out.stderr or 'Compiling' in cargo_out.stdout"
+
+    - name: Confirm binaries built
+      stat:
+        path: "{{ item }}"
+      loop:
+        - "{{ uma_release_dir }}/monitor-agent"
+        - "{{ uma_release_dir }}/monitor-collector"
+      register: bin_stat
+      failed_when: false
+
+    - name: Fail if any binary missing
+      assert:
+        that: bin_stat.results | map(attribute='stat.exists') | list | min
+        fail_msg: "Build did not produce both binaries — check cargo output."
+
+    - name: Print sizes + glibc requirement on the builder
+      shell: |
+        ls -lh {{ uma_release_dir }}/monitor-agent {{ uma_release_dir }}/monitor-collector
+        echo "---"
+        echo "Builder glibc: $(ldd --version | head -1)"
+        echo "Binary linker references (agent):"
+        ldd {{ uma_release_dir }}/monitor-agent | head -20
+      register: build_info
+      changed_when: false
+    - debug:
+        msg: "{{ build_info.stdout_lines }}"
+
+    - name: Ensure artifacts/ exists on the controller
+      file:
+        path: "{{ playbook_dir }}/../artifacts"
+        state: directory
+        mode: "0755"
+      delegate_to: localhost
+      become: false
+      run_once: true
+
+    - name: Fetch monitor-agent to controller artifacts/
+      fetch:
+        src: "{{ uma_release_dir }}/monitor-agent"
+        dest: "{{ playbook_dir }}/../artifacts/monitor-agent"
+        flat: true
+
+    - name: Fetch monitor-collector to controller artifacts/
+      fetch:
+        src: "{{ uma_release_dir }}/monitor-collector"
+        dest: "{{ playbook_dir }}/../artifacts/monitor-collector"
+        flat: true
+
+    - name: Done
+      debug:
+        msg: |
+          Built on {{ inventory_hostname }}, cached locally:
+            artifacts/monitor-agent
+            artifacts/monitor-collector
+          You can now run install-agent-fast.yml or install-collector-fast.yml
+          against any host in the fleet without rebuilding.

@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>UMA — Monitoring</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <svg class="brand-hex" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+      <span class="brand-name">UMA</span>
+      <span class="brand-version">v4</span>
+    </div>
+    <nav class="tabs">
+      <button data-tab="alerts" class="tab active">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        Alerts <span id="alert-count" class="badge">0</span>
+      </button>
+      <button data-tab="history" class="tab">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        History
+      </button>
+      <button data-tab="heatmap" class="tab">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+        Connectivity <span id="online-count" class="badge">0/0</span>
+      </button>
+      <button data-tab="settings" class="tab">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        Settings
+      </button>
+    </nav>
+    <div class="topbar-right">
+      <span class="status">
+        <span id="conn-dot" class="dot"></span>
+        <span id="conn-text">connecting…</span>
+      </span>
+    </div>
+  </header>
+
+  <!-- ============ Active Alerts ============ -->
+  <section id="view-alerts" class="view active">
+    <div class="filters">
+      <div class="filter-search">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input id="filter-text" type="text" placeholder="Search hostname, IP, message, category…" />
+      </div>
+      <label class="chip chip-critical"><input type="checkbox" id="filter-critical" checked /><span>Critical</span></label>
+      <label class="chip chip-warning"><input type="checkbox" id="filter-warning" checked /><span>Warning</span></label>
+      <label class="chip chip-info"><input type="checkbox" id="filter-info" /><span>Info</span></label>
+    </div>
+    <div id="alerts-list" class="alerts-list" aria-live="polite"></div>
+    <div id="alerts-empty" class="empty">
+      <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="opacity:.25;margin-bottom:14px;"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+      <div class="empty-title">All clear</div>
+      <div class="empty-sub">No active alerts — all systems nominal</div>
+    </div>
+  </section>
+
+  <!-- ============ History ============ -->
+  <section id="view-history" class="view">
+    <div class="filters">
+      <div class="filter-search">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input id="history-filter" type="text" placeholder="Search history…" />
+      </div>
+      <label class="chip"><input type="checkbox" id="hist-firing" checked /><span>Firing</span></label>
+      <label class="chip"><input type="checkbox" id="hist-resolved" checked /><span>Resolved</span></label>
+      <span class="muted small" id="history-count">0 events</span>
+      <button id="clear-history" class="btn-danger-outline">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+        Clear history
+      </button>
+    </div>
+    <div class="history-table">
+      <div class="hist-head">
+        <div>Time</div>
+        <div>Severity</div>
+        <div>State</div>
+        <div>Host</div>
+        <div>Category</div>
+        <div>Title</div>
+      </div>
+      <div class="history-scroll">
+        <div id="history-rows"></div>
+      </div>
+    </div>
+    <div id="history-empty" class="empty">
+      <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="opacity:.25;margin-bottom:14px;"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      <div class="empty-title">No history yet</div>
+      <div class="empty-sub">Alert events will appear here</div>
+    </div>
+  </section>
+
+  <!-- ============ Connectivity (Heatmap) ============ -->
+  <section id="view-heatmap" class="view">
+    <div class="heatmap-wrap">
+      <div class="heatmap-summary">
+        <div class="donut-wrap">
+          <svg id="donut" width="200" height="200" viewBox="0 0 42 42"></svg>
+          <div class="donut-center">
+            <div id="donut-total" class="donut-total">0</div>
+            <div class="donut-label">Total hosts</div>
+          </div>
+        </div>
+        <div id="legend" class="legend"></div>
+      </div>
+      <div class="heatmap-grid-wrap">
+        <div class="heatmap-grid-header">
+          <span class="section-title">Hosts</span>
+          <input id="heatmap-filter" type="text" placeholder="Filter by name or IP…" />
+        </div>
+        <div id="heatmap-grid" class="grid"></div>
+      </div>
+    </div>
+    <!-- Rich hover tooltip -->
+    <div id="host-tooltip" class="host-tooltip hidden"></div>
+  </section>
+
+  <!-- ============ Settings ============ -->
+  <section id="view-settings" class="view">
+    <div class="settings-wrap">
+
+      <!-- General -->
+      <div class="settings-card">
+        <div class="settings-card-header">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>
+          General
+        </div>
+        <div class="settings-row" style="border-bottom:none;">
+          <div class="settings-label">
+            <div class="settings-label-title">Appearance</div>
+            <div class="settings-label-desc">Switch between light and dark theme</div>
+          </div>
+          <div class="theme-switcher">
+            <button id="theme-light" class="theme-btn">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>
+              Light
+            </button>
+            <button id="theme-dark" class="theme-btn">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+              Dark
+            </button>
+          </div>
+        </div>
+        
+      </div>
+
+      <!-- Desktop Notifications -->
+      <div class="settings-card">
+        <div class="settings-card-header">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+          Desktop Notifications
+        </div>
+        <div class="settings-row">
+          <div class="settings-label">
+            <div class="settings-label-title">Enable Notifications</div>
+            <div class="settings-label-desc">Show browser notifications when alerts arrive</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;">
+            <label class="toggle-switch">
+              <input type="checkbox" id="np-enable" />
+              <span class="toggle-slider"></span>
+            </label>
+            <span id="np-perm" class="np-perm"></span>
+          </div>
+        </div>
+        <div class="settings-row">
+          <div class="settings-label">
+            <div class="settings-label-title">Sound Alerts</div>
+            <div class="settings-label-desc">Play a beep sound when a notification arrives</div>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="np-sound" />
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        <div class="settings-row">
+          <div class="settings-label">
+            <div class="settings-label-title">Minimum Severity</div>
+            <div class="settings-label-desc">Only notify for alerts at or above this level</div>
+          </div>
+          <select id="np-severity" class="settings-select">
+            <option value="critical">Critical only</option>
+            <option value="warning">Critical + Warning</option>
+            <option value="all">All (incl. Info)</option>
+          </select>
+        </div>
+        <div class="settings-row" style="border-bottom:none;">
+          <div class="settings-label">
+            <div class="settings-label-title">Test Notification</div>
+            <div class="settings-label-desc">Send a test to verify browser permissions</div>
+          </div>
+          <button id="np-test" class="btn-secondary">Send test</button>
+        </div>
+      </div>
+
+      <!-- Webhook Integrations -->
+      <div class="settings-card">
+        <div class="settings-card-header">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+          Webhook Integrations
+        </div>
+        <div class="settings-info-banner">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          Webhooks are defined in <code>config.toml</code>. Use the config editor below to add Slack, Google Chat, or generic webhook endpoints.
+        </div>
+        <div id="webhooks-list" class="webhooks-list">
+          <div class="muted small" style="padding:10px 0 4px;">Loading…</div>
+        </div>
+      </div>
+
+      <!-- Collector Config Editor -->
+      <div class="settings-card">
+        <div class="settings-card-header">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+          Collector Config Editor
+        </div>
+        <div class="settings-warn-banner">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+          Changes require a collector restart to take effect.
+        </div>
+        <div id="config-editor-area">
+          <div class="config-loading muted small">Loading config…</div>
+        </div>
+        <div id="config-editor-actions" class="config-editor-actions hidden">
+          <span id="config-save-status" class="muted small"></span>
+          <button id="config-reload" class="btn-secondary">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+            Reload
+          </button>
+          <button id="config-save" class="btn-primary">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13"/><polyline points="7 3 7 8 15 8"/></svg>
+            Save config
+          </button>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ============ Alert Detail Modal ============ -->
+  <div id="modal" class="modal hidden">
+    <div class="modal-card">
+      <div class="modal-head">
+        <div class="modal-head-left">
+          <span id="modal-sev-badge" class="sev-badge"></span>
+          <div>
+            <div id="modal-title" class="modal-title">Alert detail</div>
+            <div id="modal-subtitle" class="modal-subtitle"></div>
+          </div>
+        </div>
+        <button id="modal-close" class="icon-btn">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <div id="modal-body" class="modal-body"></div>
+    </div>
+  </div>
+
+  <!-- ============ Password Confirm Modal ============ -->
+  <div id="pwd-modal" class="modal hidden">
+    <div class="modal-card modal-card-sm">
+      <div class="modal-head">
+        <div class="modal-head-left">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--critical);flex-shrink:0;"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          <div class="modal-title">Confirm Clear History</div>
+        </div>
+        <button id="pwd-modal-close" class="icon-btn">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <div class="pwd-modal-body">
+        <p id="pwd-modal-msg" class="pwd-modal-msg">Enter the password to permanently wipe alert history. This cannot be undone.</p>
+        <input type="password" id="pwd-modal-input" class="settings-input" placeholder="Password…" style="width:100%;" autocomplete="off" />
+        <div id="pwd-modal-error" class="pwd-error hidden">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          Incorrect password
+        </div>
+        <div class="pwd-modal-actions">
+          <button id="pwd-modal-cancel" class="btn-secondary">Cancel</button>
+          <button id="pwd-modal-confirm" class="btn-danger">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+            Clear history
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="/app.js" defer></script>
+</body>
+</html>

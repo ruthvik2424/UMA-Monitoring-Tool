@@ -1,0 +1,21 @@
+# Managed by Ansible — do not edit by hand.
+
+bind_ingest = "{{ uma_collector_bind_ingest }}"
+bind_gui    = "{{ uma_collector_bind_gui }}"
+{% if uma_collector_bind_syslog_udp %}
+bind_syslog_udp = "{{ uma_collector_bind_syslog_udp }}"
+{% endif %}
+{% if uma_collector_bind_syslog_tls %}
+bind_syslog_tls = "{{ uma_collector_bind_syslog_tls }}"
+{% endif %}
+
+db_path         = "/var/lib/monitor-collector/collector.sqlite"
+retention_days  = {{ uma_collector_retention_days }}
+offline_after_s = {{ uma_collector_offline_after_s }}
+log_level       = "{{ uma_collector_log_level }}"
+
+[tls]
+ca_cert     = "/etc/monitor-collector/ca.crt"
+server_cert = "/etc/monitor-collector/server.crt"
+server_key  = "/etc/monitor-collector/server.key"
+require_client_cert = true

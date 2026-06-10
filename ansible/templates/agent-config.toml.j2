@@ -1,0 +1,222 @@
+{# UMA agent config — single source of truth for both install-agent-fast.yml
+   and the monitor-agent role.
+
+   Variable layers (lowest to highest precedence — Ansible standard):
+     1. group_vars/uma_agents.yml  — defaults for the whole fleet
+     2. host_vars/<hostname>.yml   — per-host overrides (BMC creds, GPUs)
+     3. -e on the command line     — one-off overrides
+
+   Module dict merging: uma_modules (defaults) + uma_modules_overrides (host-specific)
+   are merged recursively so host_vars need only set the keys that differ. #}
+{% set m = (uma_modules | default({})) | combine(uma_modules_overrides | default({}), recursive=True) %}
+# Managed by Ansible — do not edit by hand.
+# Source: ansible/templates/agent-config.toml.j2
+# Host:   {{ inventory_hostname }}
+# Generated: {{ ansible_date_time.iso8601 | default('') }}
+
+[agent]
+log_level = "{{ uma_log_level | default('info') }}"
+
+[collector]
+url              = "{{ uma_collector_url }}"
+keepalive_s      = {{ uma_collector_keepalive_s | default(5) }}
+reconnect_min_ms = {{ uma_collector_reconnect_min_ms | default(250) }}
+reconnect_max_ms = {{ uma_collector_reconnect_max_ms | default(30000) }}
+
+[tls]
+ca_cert     = "/etc/monitor-agent/ca.crt"
+client_cert = "/etc/monitor-agent/client.crt"
+client_key  = "/etc/monitor-agent/client.key"
+
+[heartbeat]
+interval_s = {{ uma_heartbeat_interval_s | default(5) }}
+
+[dedup]
+re_notify_after_s = {{ uma_re_notify_after_s | default(1800) }}
+recovery_window_s = {{ uma_recovery_window_s | default(60) }}
+
+[tags]
+dc   = "{{ uma_dc | default('lab') }}"
+role = "{{ uma_role | default('baremetal') }}"
+host = "{{ inventory_hostname }}"
+{% for k, v in (uma_extra_tags | default({})).items() %}
+{{ k }} = "{{ v }}"
+{% endfor %}
+
+# ============================================================================
+# Hardware modules — enable/disable + thresholds
+# ============================================================================
+
+[modules.nvme]
+enabled           = {{ (m.nvme | default({})).enabled           | default(true)  | bool | string | lower }}
+poll_s            = {{ (m.nvme | default({})).poll_s            | default(60) }}
+wear_warn_pct     = {{ (m.nvme | default({})).wear_warn_pct     | default(80) }}
+wear_critical_pct = {{ (m.nvme | default({})).wear_critical_pct | default(90) }}
+temp_warn_c       = {{ (m.nvme | default({})).temp_warn_c       | default(70) }}
+temp_critical_c   = {{ (m.nvme | default({})).temp_critical_c   | default(80) }}
+
+[modules.disk_smart]
+enabled = {{ (m.disk_smart | default({})).enabled | default(true) | bool | string | lower }}
+poll_s  = {{ (m.disk_smart | default({})).poll_s  | default(300) }}
+
+[modules.memory_ecc]
+enabled          = {{ (m.memory_ecc | default({})).enabled          | default(true) | bool | string | lower }}
+poll_s           = {{ (m.memory_ecc | default({})).poll_s           | default(5) }}
+ce_per_hour_warn = {{ (m.memory_ecc | default({})).ce_per_hour_warn | default(50) }}
+
+[modules.cpu_mce]
+enabled = {{ (m.cpu_mce | default({})).enabled | default(true) | bool | string | lower }}
+
+[modules.pcie_aer]
+enabled                = {{ (m.pcie_aer | default({})).enabled                | default(true) | bool | string | lower }}
+corrected_per_min_warn = {{ (m.pcie_aer | default({})).corrected_per_min_warn | default(100) }}
+
+[modules.thermal]
+enabled           = {{ (m.thermal | default({})).enabled           | default(true) | bool | string | lower }}
+poll_s            = {{ (m.thermal | default({})).poll_s            | default(5) }}
+inlet_warn_c      = {{ (m.thermal | default({})).inlet_warn_c      | default(32.0) }}
+inlet_critical_c  = {{ (m.thermal | default({})).inlet_critical_c  | default(36.0) }}
+inlet_emergency_c = {{ (m.thermal | default({})).inlet_emergency_c | default(38.0) }}
+
+[modules.network_nic]
+enabled        = {{ (m.network_nic | default({})).enabled        | default(true) | bool | string | lower }}
+flap_window_s  = {{ (m.network_nic | default({})).flap_window_s  | default(10) }}
+flap_threshold = {{ (m.network_nic | default({})).flap_threshold | default(2) }}
+counter_poll_s = {{ (m.network_nic | default({})).counter_poll_s | default(5) }}
+ignore_regex   = {{ (m.network_nic | default({})).ignore_regex   | default(['^lo$', '^docker.*', '^veth.*', '^br-.*', '^cali.*', '^cni.*', '^tun.*', '^tap.*', '^virbr.*']) | to_json }}
+
+[modules.storage_controller]
+enabled = {{ (m.storage_controller | default({})).enabled | default(true) | bool | string | lower }}
+poll_s  = {{ (m.storage_controller | default({})).poll_s  | default(15) }}
+
+[modules.storage_io]
+enabled            = {{ (m.storage_io | default({})).enabled            | default(true) | bool | string | lower }}
+watch_ceph_osd     = {{ (m.storage_io | default({})).watch_ceph_osd     | default(true) | bool | string | lower }}
+correlate_window_s = {{ (m.storage_io | default({})).correlate_window_s | default(30) }}
+
+[modules.mempressure]
+enabled              = {{ (m.mempressure | default({})).enabled              | default(true) | bool | string | lower }}
+poll_s               = {{ (m.mempressure | default({})).poll_s               | default(2) }}
+psi_some_avg10_warn  = {{ (m.mempressure | default({})).psi_some_avg10_warn  | default(50.0) }}
+sustain_s            = {{ (m.mempressure | default({})).sustain_s            | default(30) }}
+oom_storm_count      = {{ (m.mempressure | default({})).oom_storm_count      | default(3) }}
+oom_storm_window_s   = {{ (m.mempressure | default({})).oom_storm_window_s   | default(300) }}
+
+[modules.oshang]
+enabled = {{ (m.oshang | default({})).enabled | default(true) | bool | string | lower }}
+
+# ----- GPU modules — disabled by default. Enable per-host where GPUs exist. -----
+[modules.gpu_nvidia]
+enabled = {{ (m.gpu_nvidia | default({})).enabled | default(false) | bool | string | lower }}
+
+[modules.gpu_amd]
+enabled = {{ (m.gpu_amd | default({})).enabled | default(false) | bool | string | lower }}
+
+# ----- BMC modules — disabled by default. Set redfish creds per-host to enable. -----
+[modules.bmc_redfish]
+enabled          = {{ (m.bmc_redfish | default({})).enabled          | default(false) | bool | string | lower }}
+poll_s           = {{ (m.bmc_redfish | default({})).poll_s           | default(10) }}
+ipmi_device      = "{{ (m.bmc_redfish | default({})).ipmi_device      | default('/dev/ipmi0') }}"
+redfish_url      = "{{ (m.bmc_redfish | default({})).redfish_url      | default('') }}"
+redfish_username = "{{ (m.bmc_redfish | default({})).redfish_username | default('') }}"
+redfish_password = "{{ (m.bmc_redfish | default({})).redfish_password | default('') }}"
+redfish_insecure = {{ (m.bmc_redfish | default({})).redfish_insecure | default(false) | bool | string | lower }}
+
+[modules.bmc_eventlog]
+enabled          = {{ (m.bmc_eventlog | default({})).enabled          | default(false) | bool | string | lower }}
+poll_s           = {{ (m.bmc_eventlog | default({})).poll_s           | default(10) }}
+redfish_url      = "{{ (m.bmc_eventlog | default({})).redfish_url      | default('') }}"
+redfish_username = "{{ (m.bmc_eventlog | default({})).redfish_username | default('') }}"
+redfish_password = "{{ (m.bmc_eventlog | default({})).redfish_password | default('') }}"
+redfish_insecure = {{ (m.bmc_eventlog | default({})).redfish_insecure | default(false) | bool | string | lower }}
+
+[modules.syslog_rules]
+enabled = {{ (m.syslog_rules | default({})).enabled | default(true) | bool | string | lower }}
+{% if (m.syslog_rules | default({})).rules is defined %}
+# Custom rules from host_vars / group_vars (these REPLACE the built-in defaults).
+{% for rule in m.syslog_rules.rules %}
+
+[[modules.syslog_rules.rules]]
+name     = "{{ rule.name }}"
+regex    = '{{ rule.regex }}'
+severity = "{{ rule.severity }}"
+category = "{{ rule.category }}"
+title    = "{{ rule.title }}"
+message  = "{{ rule.message }}"
+{% endfor %}
+{% else %}
+
+# ---- Built-in default rules (override by setting uma_modules.syslog_rules.rules in vars) ----
+
+# NIC link-down/up events from the kernel — sometimes faster than rtnetlink
+# for certain drivers. The dedicated network_nic module also catches these
+# via netlink; both rules will fire so you'll see two alerts per event.
+[[modules.syslog_rules.rules]]
+name     = "nic_link_down_kernel"
+regex    = '(?i)(NIC Link is Down|Link Down|link is down|operstate.*down|carrier lost on)'
+severity = "warning"
+category = "network_nic"
+title    = "NIC link went down (kernel log)"
+message  = "Kernel reported a NIC link-down event. Check cable, SFP, switch port. Trace: {match}"
+
+[[modules.syslog_rules.rules]]
+name     = "nic_link_up_kernel"
+regex    = '(?i)NIC Link is Up|carrier restored|link up at'
+severity = "info"
+category = "network_nic"
+title    = "NIC link came up"
+message  = "Kernel reported a NIC link-up event. Trace: {match}"
+
+# OOM kills — backup catcher (mempressure module is the primary path).
+[[modules.syslog_rules.rules]]
+name     = "oom_kill_kernel"
+regex    = '(?i)Out of memory: Killed process|invoked oom-killer'
+severity = "critical"
+category = "memory_pressure"
+title    = "OOM killer fired (kernel log)"
+message  = "Linux OOM killer terminated a process due to memory exhaustion. Investigate the workload that grew unbounded. Trace: {match}"
+
+# HPE/Dell SmartArray + LSI MegaRAID controller lockup — backup catcher.
+[[modules.syslog_rules.rules]]
+name     = "controller_lockup_kernel"
+regex    = '(?i)(hpsa|smartpqi|megaraid_sas).*(controller\s+(lockup\s+detected|(?:is\s+)?offline)|no\s+controller\s+heartbeat|hard\s+reset|fatal\s+error|reason\s+code\s+0x)'
+severity = "critical"
+category = "storage_controller"
+title    = "Storage controller lockup (kernel log)"
+message  = "Kernel logged a storage controller lockup/offline event. Disks behind this controller will be unreachable; OSDs/filesystems will go down. Schedule a power cycle. Trace: {match}"
+
+# libceph kernel client lost contact with an OSD (kernel RBD/CephFS only —
+# userspace OSD daemons are watched via D-Bus by the storage_io module).
+[[modules.syslog_rules.rules]]
+name     = "libceph_osd_down"
+regex    = '(?i)libceph: osd\d+ \S+ down|libceph: wrong peer|libceph: socket closed'
+severity = "warning"
+category = "storage_io"
+title    = "libceph: OSD reported down"
+message  = "Kernel libceph client lost connection to a Ceph OSD or peer. If many OSDs go down at once, look for a network or upstream failure. Trace: {match}"
+
+# systemd-managed service stopped sending sd_notify WATCHDOG=1 — closest
+# local approximation of "no heartbeat" (true peer-loss is a collector concern).
+[[modules.syslog_rules.rules]]
+name     = "systemd_watchdog_timeout"
+regex    = '(?i)Watchdog timeout for [\w@\-\.:]+\.service|Watchdog (timed out|has expired)|Killing process .* due to watchdog timeout'
+severity = "critical"
+category = "syslog"
+title    = "systemd service watchdog timeout"
+message  = "A systemd-managed service stopped sending watchdog pings — systemd is killing it. Common causes: deadlock, blocked on I/O. Trace: {match}"
+
+# TCP keepalive expired — remote peer unresponsive.
+[[modules.syslog_rules.rules]]
+name     = "tcp_keepalive_timeout"
+regex    = '(?i)TCP.*keepalive timer expired|connection timed out, killing'
+severity = "warning"
+category = "network_nic"
+title    = "TCP keepalive timeout"
+message  = "Kernel reported a TCP keepalive timeout — peer is unresponsive. Trace: {match}"
+{% endif %}
+
+[modules.boot]
+enabled = {{ (m.boot | default({})).enabled | default(true) | bool | string | lower }}
+
+[modules.lifecycle]
+enabled = {{ (m.lifecycle | default({})).enabled | default(true) | bool | string | lower }}

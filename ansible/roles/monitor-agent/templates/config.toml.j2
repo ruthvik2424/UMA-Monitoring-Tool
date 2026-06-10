@@ -1,0 +1,42 @@
+# Managed by Ansible — do not edit by hand.
+
+[agent]
+log_level = "{{ uma_log_level }}"
+
+[collector]
+url = "{{ uma_collector_url }}"
+keepalive_s = 5
+
+[tls]
+ca_cert     = "/etc/monitor-agent/ca.crt"
+client_cert = "/etc/monitor-agent/client.crt"
+client_key  = "/etc/monitor-agent/client.key"
+
+[heartbeat]
+interval_s = {{ uma_heartbeat_interval_s }}
+
+[dedup]
+re_notify_after_s = {{ uma_re_notify_after_s }}
+recovery_window_s = {{ uma_recovery_window_s }}
+
+[tags]
+{% for k, v in uma_tags.items() %}
+{{ k }} = "{{ v }}"
+{% endfor %}
+
+[modules.thermal]
+enabled = true
+inlet_warn_c      = {{ uma_inlet_warn_c }}
+inlet_critical_c  = {{ uma_inlet_critical_c }}
+inlet_emergency_c = {{ uma_inlet_emergency_c }}
+
+[modules.network_nic]
+enabled = true
+flap_window_s  = {{ uma_flap_window_s }}
+flap_threshold = {{ uma_flap_threshold }}
+
+[modules.lifecycle]
+enabled = true
+
+[modules.boot]
+enabled = true

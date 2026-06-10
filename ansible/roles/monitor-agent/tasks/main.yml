@@ -1,0 +1,91 @@
+---
+- name: Install optional package set so all modules activate
+  apt:
+    name: "{{ uma_apt_tools }}"
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+  when: uma_install_apt_tools | bool
+
+- name: Ensure target dirs
+  file:
+    path: "{{ item }}"
+    state: directory
+    mode: "0755"
+  loop:
+    - /etc/monitor-agent
+    - /var/lib/monitor-agent
+    - /var/log/monitor-agent
+
+- name: Install logrotate config
+  copy:
+    src: logrotate-monitor-agent
+    dest: /etc/logrotate.d/monitor-agent
+    mode: "0644"
+    owner: root
+    group: root
+
+- name: Install monitor-agent binary
+  copy:
+    src: "{{ uma_binary_dir }}/monitor-agent"
+    dest: /usr/local/bin/monitor-agent
+    mode: "0755"
+    owner: root
+    group: root
+  notify: restart monitor-agent
+
+- name: Install systemd unit
+  copy:
+    src: "{{ playbook_dir }}/../systemd/monitor-agent.service"
+    dest: /etc/systemd/system/monitor-agent.service
+    mode: "0644"
+  notify:
+    - reload systemd
+    - restart monitor-agent
+
+- name: Render agent config (full module set, sourced from group_vars + host_vars)
+  template:
+    src: "{{ playbook_dir }}/templates/agent-config.toml.j2"
+    dest: /etc/monitor-agent/config.toml
+    mode: "0640"
+    owner: root
+    group: root
+  notify: restart monitor-agent
+
+- name: Install CA cert
+  copy:
+    src: "{{ uma_certs_dir }}/ca.crt"
+    dest: /etc/monitor-agent/ca.crt
+    mode: "0644"
+
+- name: Install per-host client cert
+  copy:
+    src: "{{ uma_certs_dir }}/{{ inventory_hostname }}.client.crt"
+    dest: /etc/monitor-agent/client.crt
+    mode: "0644"
+  notify: restart monitor-agent
+
+- name: Install per-host client key
+  copy:
+    src: "{{ uma_certs_dir }}/{{ inventory_hostname }}.client.key"
+    dest: /etc/monitor-agent/client.key
+    mode: "0600"
+    owner: root
+    group: root
+  notify: restart monitor-agent
+
+- name: Install sudoers rule for hardware interrogation tools
+  copy:
+    src: sudoers-monitor-agent
+    dest: /etc/sudoers.d/monitor-agent
+    mode: "0440"
+    owner: root
+    group: root
+    validate: "visudo -c -f %s"
+
+- name: Enable + start monitor-agent
+  systemd:
+    name: monitor-agent
+    enabled: true
+    state: started
+    daemon_reload: true

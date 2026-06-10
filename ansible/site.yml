@@ -1,0 +1,32 @@
+---
+# UMA — full deployment.
+#
+# One command end-to-end:
+#   ansible-playbook -i inventory.ini site.yml
+#
+# Steps (each is independently runnable via --tags):
+#   1. build  — cargo build --release on the controller
+#   2. pki    — bootstrap CA + issue collector & per-host client certs
+#   3. deploy — push binaries + certs + config + systemd units, enable services
+#
+# Useful invocations:
+#   ansible-playbook -i inventory.ini site.yml --tags pki      # only certs
+#   ansible-playbook -i inventory.ini site.yml --tags build    # only build
+#   ansible-playbook -i inventory.ini site.yml --tags deploy   # only push
+#   ansible-playbook -i inventory.ini site.yml --limit uma_agents
+#   ansible-playbook -i inventory.ini site.yml --check          # dry-run
+#
+# Pre-reqs on the CONTROLLER:
+#   - Rust toolchain (`curl ... | sh`) + the workspace's rust-toolchain.toml will pin to stable
+#   - `apt install -y pkg-config build-essential libssl-dev libudev-dev libdbus-1-dev libsqlite3-dev`
+#   - Ansible 2.14+
+#
+# Pre-reqs on EVERY TARGET:
+#   - SSH access with sudo
+#   - Python 3 (Ubuntu default)
+#   - Ports reachable: collector binds 9443 (agents) and 8443 (GUI); agents
+#     dial out to the collector
+
+- import_playbook: 00-build.yml
+- import_playbook: 01-pki.yml
+- import_playbook: deploy.yml

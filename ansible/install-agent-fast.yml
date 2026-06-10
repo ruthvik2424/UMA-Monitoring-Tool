@@ -1,0 +1,192 @@
+---
+# Fast agent install — no per-target build. Uses pre-built binary from
+# the controller's artifacts/ directory (created by build-and-fetch.yml).
+#
+# Pre-conditions on the CONTROLLER:
+#   - artifacts/monitor-agent exists (from build-and-fetch.yml or a manual
+#     `scp builder:.../monitor-agent ./artifacts/`).
+#   - certs/out/ca.crt exists.
+#   - For EACH target in [uma_agents], a matching client cert exists at
+#     certs/out/<inventory_hostname>.client.{crt,key}. The playbook will
+#     auto-issue these (delegated to localhost) if missing.
+#
+# Required variable: uma_collector_url (in inventory or via -e).
+#
+# Run:
+#   ansible-playbook -i inventory.fleet.ini install-agent-fast.yml --ask-become-pass
+
+- name: UMA — fast agent install (no rebuild)
+  hosts: uma_agents
+  gather_facts: true
+  vars:
+    # Internal-only paths. User-tweakable knobs (uma_log_level, uma_dc, etc.)
+    # come from inventory or -e and are referenced with `| default(...)` in
+    # the template below — DO NOT redeclare them here or precedence + Jinja
+    # recursion bite you.
+    artifacts_dir: "{{ playbook_dir }}/../artifacts"
+    certs_dir: "{{ playbook_dir }}/../certs/out"
+
+  pre_tasks:
+    - name: Sanity — collector URL provided
+      assert:
+        that: uma_collector_url is defined and uma_collector_url | length > 0
+        fail_msg: "Set uma_collector_url in inventory or -e uma_collector_url='wss://collector:9443/v1/ingest'"
+      run_once: true
+      delegate_to: localhost
+
+    - name: Sanity — pre-built binary present
+      stat:
+        path: "{{ artifacts_dir }}/monitor-agent"
+      register: agent_artifact
+      delegate_to: localhost
+      become: false
+      run_once: true
+      failed_when: not agent_artifact.stat.exists
+      vars:
+        ansible_become: false
+
+    - name: Sanity — CA cert present
+      stat:
+        path: "{{ certs_dir }}/ca.crt"
+      register: ca_stat
+      delegate_to: localhost
+      become: false
+      run_once: true
+      failed_when: not ca_stat.stat.exists
+
+    - name: Auto-issue client cert for {{ inventory_hostname }} if missing
+      # `argv` form so paths-with-spaces don't get shlex-tokenized.
+      command:
+        argv:
+          - ./gen-certs.sh
+          - client
+          - "{{ inventory_hostname }}"
+        chdir: "{{ playbook_dir }}/../certs"
+        creates: "{{ certs_dir }}/{{ inventory_hostname }}.client.crt"
+      delegate_to: localhost
+      become: false
+
+  tasks:
+    # ---------- 0. Maintain /etc/hosts entries so the collector hostname
+    #               always resolves, regardless of DNS state. ----------
+    - name: Pin collector hostname → IP in /etc/hosts (idempotent)
+      become: true
+      lineinfile:
+        path: /etc/hosts
+        line: "{{ hostvars[item].ansible_host | default(item) }}   {{ item }}"
+        regexp: "\\s{{ item }}(\\s|$)"
+        state: present
+      loop: "{{ groups['uma_collectors'] | default([]) }}"
+      when: groups['uma_collectors'] is defined
+
+    # ---------- 1. Runtime tools (small apt set; no build deps needed) ----------
+    - name: Install runtime tools so all modules activate
+      become: true
+      apt:
+        update_cache: true
+        cache_valid_time: 3600
+        name:
+          - smartmontools
+          - nvme-cli
+          - ethtool
+          - ipmitool
+          - lm-sensors
+          - edac-utils
+          - rasdaemon
+          - pciutils
+          - dmidecode
+          - libudev1     # transitive, but be explicit
+          - libdbus-1-3  # ditto
+
+    # ---------- 2. Push pre-built binary ----------
+    - name: Push monitor-agent binary
+      become: true
+      copy:
+        src: "{{ artifacts_dir }}/monitor-agent"
+        dest: /usr/local/bin/monitor-agent
+        owner: root
+        group: root
+        mode: "0755"
+
+    # ---------- 3. Dirs + certs + config + unit ----------
+    - name: Create agent dirs
+      become: true
+      file:
+        path: "{{ item }}"
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+      loop:
+        - /etc/monitor-agent
+        - /var/lib/monitor-agent
+
+    - name: Push CA cert
+      become: true
+      copy:
+        src: "{{ certs_dir }}/ca.crt"
+        dest: /etc/monitor-agent/ca.crt
+        owner: root
+        group: root
+        mode: "0644"
+
+    - name: Push client cert
+      become: true
+      copy:
+        src: "{{ certs_dir }}/{{ inventory_hostname }}.client.crt"
+        dest: /etc/monitor-agent/client.crt
+        owner: root
+        group: root
+        mode: "0644"
+
+    - name: Push client key (mode 0600)
+      become: true
+      copy:
+        src: "{{ certs_dir }}/{{ inventory_hostname }}.client.key"
+        dest: /etc/monitor-agent/client.key
+        owner: root
+        group: root
+        mode: "0600"
+
+    - name: Render agent config (full module set, sourced from group_vars + host_vars)
+      become: true
+      template:
+        src: "{{ playbook_dir }}/templates/agent-config.toml.j2"
+        dest: /etc/monitor-agent/config.toml
+        owner: root
+        group: root
+        mode: "0640"
+
+    - name: Push systemd unit
+      become: true
+      copy:
+        src: "{{ playbook_dir }}/../systemd/monitor-agent.service"
+        dest: /etc/systemd/system/monitor-agent.service
+        owner: root
+        group: root
+        mode: "0644"
+
+    # ---------- 4. Enable + start ----------
+    - name: systemctl daemon-reload
+      become: true
+      systemd:
+        daemon_reload: true
+
+    - name: Enable + restart monitor-agent
+      become: true
+      systemd:
+        name: monitor-agent
+        enabled: true
+        state: restarted
+
+    - name: Brief settle pause
+      pause:
+        seconds: 4
+
+    - name: Tail recent agent log
+      become: true
+      shell: journalctl -u monitor-agent -n 15 --no-pager
+      register: agent_log
+      changed_when: false
+    - debug:
+        msg: "{{ agent_log.stdout_lines }}"

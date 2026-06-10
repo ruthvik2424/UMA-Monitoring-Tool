@@ -1,0 +1,155 @@
+# UMA agent — example configuration.
+# Drop at /etc/monitor-agent/config.toml. Anything unset uses sane defaults.
+
+[agent]
+# Tracing verbosity: trace|debug|info|warn|error. Also accepts `maintenance` or
+# `maintainance` (typo) — maps to tracing `info` and enables alert suppression.
+log_level = "info"
+# Explicit maintenance flag (optional). When true, no alerts are sent to the collector
+# (heartbeats and hello still run). Same as log_level = "maintenance".
+# maintenance = false
+# Loopback-only recommended. Serves GET /v1/debug/snapshot — JSON with module thresholds,
+# syslog rules, and sample command outputs for validation. Use `monitor-agent --debug-snapshot` for a one-shot.
+# debug_listen = "127.0.0.1:19100"
+
+[collector]
+url = "wss://collector.dc1.internal:9443/v1/ingest"
+keepalive_s = 5
+reconnect_min_ms = 250
+reconnect_max_ms = 30000
+
+[tls]
+ca_cert     = "/etc/monitor-agent/ca.crt"
+client_cert = "/etc/monitor-agent/client.crt"
+client_key  = "/etc/monitor-agent/client.key"
+insecure_skip_verify = false
+
+[heartbeat]
+interval_s = 5
+
+[dedup]
+re_notify_after_s = 1800   # 30 minutes
+recovery_window_s = 60
+
+[tags]
+dc   = "dc1"
+rack = "R12"
+role = "ceph-osd"
+
+# ---- Hardware modules ----
+
+[modules.nvme]
+enabled = true
+poll_s = 60
+wear_warn_pct = 80
+wear_critical_pct = 90
+temp_warn_c = 70
+temp_critical_c = 80
+
+[modules.disk_smart]
+enabled = true
+poll_s = 300
+
+[modules.memory_ecc]
+enabled = true
+poll_s = 30
+ce_per_hour_warn = 50
+# ipmi_sdr_enable = true       # (default) reads ECC from BMC via ipmitool — safe with iLO/iDRAC/BMC
+# edac_sysfs_enable = false    # (default) EDAC kernel module conflicts with HPE iLO / Dell iDRAC / Supermicro BMC
+                                # Set to true ONLY on hosts WITHOUT a management controller (bare VMs etc.)
+
+[modules.cpu_mce]
+enabled = true
+
+[modules.pcie_aer]
+enabled = true
+corrected_per_min_warn = 100
+
+[modules.thermal]
+enabled = true
+poll_s = 5
+inlet_warn_c     = 32.0
+inlet_critical_c = 36.0
+inlet_emergency_c = 38.0   # well below HPE/Dell auto-shutdown ~42C
+
+[modules.gpu_nvidia]
+enabled = true
+
+[modules.gpu_amd]
+enabled = true
+
+[modules.network_nic]
+enabled = true
+flap_window_s = 10
+flap_threshold = 2
+counter_poll_s = 5
+# ignore_regex is a DENYLIST — interfaces matching ANY pattern are SKIPPED.
+# Anything not in this list is monitored. Physical NICs like ens*, eno*,
+# eth*, enp*, bond*, mlx5_* are therefore monitored by default — you do
+# NOT need to add them here.
+# Add a pattern only if you want a NIC SILENCED (e.g. a noisy management
+# loopback or a transient overlay interface).
+ignore_regex = [
+  "^lo$",       # loopback
+  "^docker.*",  # docker bridge / container ifaces
+  "^veth.*",    # container virtual ethernet pair endpoints
+  "^br-.*",     # docker user-defined bridges
+  "^cali.*",    # calico CNI ifaces
+  "^cni.*",     # generic CNI ifaces
+  "^tun.*",     # WireGuard / OpenVPN tunnels
+  "^tap.*",     # KVM/QEMU tap devices
+  "^virbr.*",   # libvirt bridges
+]
+
+[modules.storage_controller]
+enabled = true
+poll_s = 15
+
+[modules.storage_io]
+enabled = true
+watch_ceph_osd = true
+correlate_window_s = 30
+
+[modules.mempressure]
+enabled = true
+poll_s = 2
+psi_some_avg10_warn = 50.0
+sustain_s = 30
+oom_storm_count = 3
+oom_storm_window_s = 300
+
+[modules.oshang]
+enabled = true
+
+[modules.bmc_redfish]
+enabled = false           # set to true once Redfish creds are populated
+poll_s = 10
+ipmi_device = "/dev/ipmi0"
+redfish_url = "https://10.0.0.42"
+redfish_username = "monitor"
+redfish_password = "REPLACE_ME"
+redfish_insecure = false
+
+[modules.bmc_eventlog]
+enabled = false
+poll_s = 10
+redfish_url = "https://10.0.0.42"
+redfish_username = "monitor"
+redfish_password = "REPLACE_ME"
+
+[modules.boot]
+enabled = true
+
+[modules.lifecycle]
+enabled = true
+
+[modules.syslog_rules]
+enabled = true
+# Built-in defaults already cover soft lockups, EXT4/XFS errors. Add more here.
+# [[modules.syslog_rules.rules]]
+# name = "ipmi_session_lost"
+# regex = "ipmi_si.*Session lost"
+# severity = "warning"
+# category = "bmc_redfish"
+# title = "IPMI session lost"
+# message = "Local IPMI session was lost: {match}"

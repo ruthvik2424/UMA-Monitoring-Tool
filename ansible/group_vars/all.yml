@@ -1,0 +1,11 @@
+---
+# UMA — global defaults. Override in inventory or host_vars.
+
+uma_repo_dir:    "{{ playbook_dir }}/.."
+uma_binary_dir:  "{{ uma_repo_dir }}/target/release"
+uma_certs_dir:   "{{ uma_repo_dir }}/certs/out"
+uma_certs_script: "{{ uma_repo_dir }}/certs/gen-certs.sh"
+
+# Build target. The repo's Cargo.toml pins to stable 1.85+; this just keeps
+# the playbook readable.
+uma_cargo_profile: release

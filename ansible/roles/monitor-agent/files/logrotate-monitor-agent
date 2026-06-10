@@ -1,0 +1,31 @@
+# UMA monitor-agent log rotation
+# Deployed to /etc/logrotate.d/monitor-agent
+
+/var/log/monitor-agent/execution.log {
+    daily
+    rotate 3
+    compress
+    delaycompress
+    missingok
+    notifempty
+    create 0640 root root
+    postrotate
+        # Signal the agent to reopen log files after rotation.
+        # The agent's tracing-appender uses non-blocking writers that append;
+        # a new file is created on next open, so a simple restart ensures clean handles.
+        systemctl reload-or-restart monitor-agent 2>/dev/null || true
+    endscript
+}
+
+/var/log/monitor-agent/error.log {
+    daily
+    rotate 7
+    compress
+    delaycompress
+    missingok
+    notifempty
+    create 0640 root root
+    postrotate
+        systemctl reload-or-restart monitor-agent 2>/dev/null || true
+    endscript
+}

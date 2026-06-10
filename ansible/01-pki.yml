@@ -1,0 +1,74 @@
+---
+# Bootstrap the mTLS PKI:
+#   - one root CA (one-time)
+#   - one server cert per host in [uma_collectors]
+#   - one client cert per host in [uma_agents]
+#
+# Output goes to certs/out/ on the controller. Nothing copied to remote
+# hosts here; deploy.yml ships the right per-host file.
+#
+# Idempotent: existing certs are NOT regenerated. To rotate, delete the
+# specific file under certs/out/ and re-run.
+#
+# Per-host SAN extras (extra DNS names / IPs the collector cert is valid for)
+# can be set per-host in inventory:
+#   collector.dc1.internal collector_san_extras="10.0.0.10 collector.dc1 collector"
+# or globally via the inventory's [all:vars] block.
+
+- name: PKI — root CA
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tags: [pki, pki_ca]
+  tasks:
+    - name: Ensure certs/out exists
+      file:
+        path: "{{ uma_certs_dir }}"
+        state: directory
+        mode: "0755"
+
+    - name: Bootstrap root CA (one-time)
+      command:
+        argv: ["./gen-certs.sh", "ca"]
+        chdir: "{{ uma_repo_dir }}/certs"
+        creates: "{{ uma_certs_dir }}/ca.crt"
+
+- name: PKI — collector server cert(s)
+  hosts: uma_collectors
+  connection: local
+  gather_facts: false
+  tags: [pki, pki_server]
+  tasks:
+    - name: Issue server cert for {{ inventory_hostname }} (idempotent)
+      command:
+        argv: "{{ ['./gen-certs.sh', 'server', inventory_hostname] + (collector_san_extras | default('') | split) }}"
+        chdir: "{{ uma_repo_dir }}/certs"
+        creates: "{{ uma_certs_dir }}/{{ inventory_hostname }}.server.crt"
+      delegate_to: localhost
+
+- name: PKI — per-agent client certs
+  hosts: uma_agents
+  connection: local
+  gather_facts: false
+  tags: [pki, pki_clients]
+  tasks:
+    - name: Issue client cert for {{ inventory_hostname }} (idempotent)
+      command:
+        argv: ["./gen-certs.sh", "client", "{{ inventory_hostname }}"]
+        chdir: "{{ uma_repo_dir }}/certs"
+        creates: "{{ uma_certs_dir }}/{{ inventory_hostname }}.client.crt"
+      delegate_to: localhost
+
+- name: PKI — sanity listing
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tags: [pki]
+  tasks:
+    - name: ls certs/out
+      command: ls -1 {{ uma_certs_dir }}
+      register: cert_listing
+      changed_when: false
+
+    - debug:
+        msg: "{{ cert_listing.stdout_lines }}"

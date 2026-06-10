@@ -1,0 +1,78 @@
+---
+# EXAMPLE: a real HPE ProLiant node with NVIDIA GPUs and iLO accessible.
+# Copy this file to host_vars/<actual-hostname>.yml and adjust.
+#
+# Notice: only the keys you want to OVERRIDE are listed. Anything not
+# mentioned inherits group_vars/uma_agents.yml. The merge is recursive.
+
+uma_dc:   "dc1"
+uma_role: "ai-training"
+
+uma_extra_tags:
+  cluster:  "ai-cluster-prod"
+  rack:     "R12"
+  vendor:   "HPE"
+  model:    "ProLiant DL380 Gen10"
+
+uma_modules_overrides:
+
+  # Tighter inlet thresholds for densely-packed AI rack.
+  thermal:
+    inlet_warn_c:      28.0
+    inlet_critical_c:  32.0
+    inlet_emergency_c: 35.0
+
+  # ENABLE NVIDIA — host has 4x H100s.
+  gpu_nvidia:
+    enabled: true
+
+  # ENABLE iLO Redfish — sensors + event log push.
+  bmc_redfish:
+    enabled: true
+    redfish_url: "https://10.232.12.220"
+    redfish_username: "monitor"
+    redfish_password: "{{ vault_hpe_ilo_password }}"   # pulled from vault.yml
+    redfish_insecure: true                              # self-signed iLO cert
+
+  bmc_eventlog:
+    enabled: true
+    redfish_url: "https://10.232.12.220"
+    redfish_username: "monitor"
+    redfish_password: "{{ vault_hpe_ilo_password }}"
+    redfish_insecure: true
+
+  # Optional: tighter NIC flap detection for InfiniBand uplinks.
+  network_nic:
+    flap_window_s:  5
+    flap_threshold: 2
+    ignore_regex:
+      - "^lo$"
+      - "^docker.*"
+      - "^veth.*"
+      - "^cni.*"
+      - "^bond-mgmt$"   # silence the noisy mgmt bond
+
+  # Add HPE/NVIDIA-specific kmsg rules ON TOP of the agent's built-in
+  # defaults (overriding `rules` REPLACES the entire list — including
+  # built-ins. Re-state the defaults you want, plus your additions).
+  syslog_rules:
+    enabled: true
+    rules:
+      # Built-ins (keep these to retain the same coverage as default)
+      - { name: "scsi_command_timeout", regex: 'sd \d+:\d+:\d+:\d+:.*timing out|ata\d+\.\d+: exception Emask',
+          severity: "warning", category: "storage_io",
+          title: "Storage controller command timeout",
+          message: "Trace: {match}" }
+      - { name: "pcie_link_recovery", regex: 'PCIe Bus Error|pciehp.*Link (Down|Up)|pci_bus.*recovery',
+          severity: "warning", category: "pcie_aer",
+          title: "PCIe link instability",
+          message: "Trace: {match}" }
+      # HPE-specific additions
+      - { name: "hpe_smartpqi_path_loss", regex: 'smartpqi.*path lost',
+          severity: "critical", category: "storage_controller",
+          title: "HPE SmartArray path loss",
+          message: "smartpqi reported a path loss. Trace: {match}" }
+      - { name: "nvidia_xid_error", regex: 'NVRM: Xid \(PCI:[^)]+\): \d+',
+          severity: "warning", category: "gpu_nvidia",
+          title: "NVIDIA Xid error",
+          message: "NVIDIA driver reported an Xid event (driver/HW issue). Trace: {match}" }

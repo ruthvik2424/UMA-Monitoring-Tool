@@ -1,0 +1,7 @@
+[toolchain]
+# Stable channel — minimum 1.85 (clap_lex 1.1 needs edition2024).
+# rustup will install/use exactly this on `cargo` invocation.
+channel = "stable"
+profile = "minimal"
+components = ["rustfmt", "clippy"]
+targets = ["x86_64-unknown-linux-musl"]

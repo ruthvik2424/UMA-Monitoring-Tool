@@ -1,0 +1,53 @@
+[Unit]
+Description=UMA host monitoring agent
+Documentation=https://github.com/ruthvik2424/UMA-Monitoring-Tool
+After=network-online.target systemd-journald.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/monitor-agent --config /etc/monitor-agent/config.toml
+Restart=always
+RestartSec=1
+# WatchdogSec deliberately not set — the agent does not yet implement
+# sd_notify(WATCHDOG=1). Re-enable only after wiring up the `sd-notify`
+# crate inside the heartbeat task (the heartbeat already fires every 5s,
+# so a watchdog ping there is a one-line addition).
+TimeoutStopSec=8
+
+# Survivability — agent must remain alive long enough to report fatal events.
+OOMScoreAdjust=-1000
+MemoryMin=64M
+CPUWeight=200
+
+# Capabilities — needs CAP_SYSLOG (read /dev/kmsg), CAP_NET_ADMIN (rtnetlink),
+# CAP_DAC_READ_SEARCH (BMC files), and access to /dev/ipmi0.
+AmbientCapabilities=CAP_SYSLOG CAP_NET_ADMIN CAP_DAC_READ_SEARCH CAP_SYS_RAWIO
+CapabilityBoundingSet=CAP_SYSLOG CAP_NET_ADMIN CAP_DAC_READ_SEARCH CAP_SYS_RAWIO
+
+# Hardening — keep the agent locked down.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectHostname=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+# ProtectControlGroups must be false — the mempressure module reads
+# /proc/pressure/memory which requires cgroup access. Inline comments
+# are NOT supported by systemd, hence this comment is on its own line.
+ProtectControlGroups=false
+ProtectSystem=strict
+ReadWritePaths=/var/lib/monitor-agent /var/log/monitor-agent
+DevicePolicy=closed
+DeviceAllow=/dev/kmsg r
+DeviceAllow=/dev/ipmi0 rw
+DeviceAllow=/dev/nvme* rw
+DeviceAllow=/dev/sd* rw
+DeviceAllow=/dev/sg* rw
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
+LockPersonality=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,53 @@
+target/
+artifacts/
+backup/
+**/*.rs.bk
+Cargo.lock.bak
+*.swp
+.DS_Store
+.idea/
+.vscode/
+node_modules/
+__pycache__/
+
+# Local configs and secrets
+/etc-monitor-agent/
+certs/out/
+certs/*.key
+certs/*.crt
+certs/*.pem
+certs/*.csr
+certs/*.srl
+!certs/gen-certs.sh
+
+# SQLite databases
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# Local test artifacts
+*.log
+collector.sqlite
+
+# ─── Sensitive deployment data ────────────────────────────────────────────────
+# Real infrastructure inventories (keep only the example template)
+deploy-hosts.yaml
+deploy-hosts*.yaml
+!deploy-hosts.example.yaml
+hosts.csv
+hosts.csv.bkp
+copy_app/
+
+# ─── Ansible secrets ──────────────────────────────────────────────────────────
+# Ansible vault (encrypted secrets)
+ansible/group_vars/all/vault.yml
+!ansible/group_vars/all/vault.yml.example
+
+# Real host-specific configurations — exclude everything, keep only examples
+ansible/host_vars/*
+!ansible/host_vars/example-*
+
+# ─── Internal / temporary files not for public repo ──────────────────────────
+SECURITY_AUDIT.md
+MIGRATION.md

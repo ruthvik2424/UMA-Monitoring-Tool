@@ -1,0 +1,17 @@
+# UMA monitor-agent sudoers — deployed by the monitor-agent Ansible role.
+#
+# Grants the monitor-agent system user passwordless access to the specific
+# hardware interrogation tools it needs.
+#
+# Why needed: the agent runs as a non-root system user under a hardened
+# systemd unit with NoNewPrivileges=true. This flag blocks ambient capability
+# (CAP_SYS_RAWIO) inheritance into child processes, so tools like smartctl
+# and nvme cannot be run via capabilities alone. sudo NOPASSWD is the
+# standard solution (same approach as prometheus/smartctl_exporter).
+#
+# Validate this file with: sudo visudo -c -f /etc/sudoers.d/monitor-agent
+
+Defaults:monitor-agent !requiretty
+monitor-agent ALL=(ALL) NOPASSWD: /usr/sbin/smartctl
+monitor-agent ALL=(ALL) NOPASSWD: /usr/bin/nvme
+monitor-agent ALL=(ALL) NOPASSWD: /usr/sbin/nvme

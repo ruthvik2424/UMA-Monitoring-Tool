@@ -1,0 +1,13 @@
+---
+# BMC passwords. Encrypt with ansible-vault BEFORE committing:
+#   cp vault.yml.example vault.yml
+#   $EDITOR vault.yml
+#   ansible-vault encrypt vault.yml
+#
+# Then run any playbook with --ask-vault-pass (or set ANSIBLE_VAULT_PASSWORD_FILE).
+# Reference these from host_vars: redfish_password: "{{ vault_hpe_ilo_password }}"
+
+vault_hpe_ilo_password:        "REPLACE_ME"
+vault_dell_idrac_password:     "REPLACE_ME"
+vault_supermicro_bmc_password: "REPLACE_ME"
+vault_librenms_ilo_password:   "REPLACE_ME"

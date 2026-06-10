@@ -1,0 +1,11 @@
+---
+uma_binary_dir: "{{ playbook_dir }}/../target/release"
+uma_certs_dir:  "{{ playbook_dir }}/../certs/out"
+uma_collector_fqdn: "{{ inventory_hostname }}"
+uma_collector_log_level: "info"
+uma_collector_retention_days: 30
+uma_collector_offline_after_s: 10
+uma_collector_bind_ingest: "0.0.0.0:9443"
+uma_collector_bind_gui:    "0.0.0.0:8443"
+uma_collector_bind_syslog_udp: ""   # e.g. "0.0.0.0:514" to enable
+uma_collector_bind_syslog_tls: ""   # e.g. "0.0.0.0:6514"

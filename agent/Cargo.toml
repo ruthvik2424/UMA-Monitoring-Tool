@@ -1,0 +1,69 @@
+[package]
+name = "uma-agent"
+# Note: libc is already a transitive dep via nix; explicit dep ensures stability.
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+rust-version.workspace = true
+
+[features]
+default = ["v3"]
+v1 = []                                    # v1.0.0: Base agent with 17 modules
+v2 = ["v1"]                               # v2.0.0: v1 + BMC enhancements (no agent changes for webhooks/notifications)
+v3 = ["v2", "maintenance", "debug-http"]   # v3.0.0: v2 + maintenance mode + debug HTTP endpoint
+maintenance = []       # Maintenance mode support
+debug-http = []        # Debug HTTP endpoint
+
+[[bin]]
+name = "monitor-agent"
+path = "src/main.rs"
+
+[dependencies]
+uma-shared = { path = "../shared" }
+
+tokio.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+chrono.workspace = true
+ulid.workspace = true
+anyhow.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+bytes.workspace = true
+futures-util.workspace = true
+tokio-util.workspace = true
+async-trait.workspace = true
+parking_lot.workspace = true
+
+tokio-tungstenite.workspace = true
+tungstenite.workspace = true
+rustls.workspace = true
+rustls-pemfile.workspace = true
+tokio-rustls.workspace = true
+rustls-webpki.workspace = true
+reqwest.workspace = true
+
+regex.workspace = true
+once_cell.workspace = true
+toml.workspace = true
+hostname.workspace = true
+machine-uid.workspace = true
+walkdir.workspace = true
+glob.workspace = true
+hex.workspace = true
+clap.workspace = true
+
+# Linux-only system bindings. The agent is a Linux daemon by design
+# (/dev/kmsg, sysfs, rtnetlink, udev, systemd-logind D-Bus). On other
+# targets src/main.rs fires a compile_error! before reaching them.
+nix.workspace = true
+libc = "0.2"
+tracing-appender = "0.2"
+rtnetlink.workspace = true
+netlink-packet-route.workspace = true
+netlink-packet-core = "0.7"
+netlink-sys.workspace = true
+udev.workspace = true
+zbus.workspace = true

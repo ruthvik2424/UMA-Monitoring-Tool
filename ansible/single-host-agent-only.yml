@@ -1,0 +1,230 @@
+---
+# UMA — install the AGENT ONLY on one host (collector lives elsewhere).
+#
+# Pre-conditions on the controller (Mac/Linux build host):
+#   1. CA already bootstrapped: certs/out/ca.crt + ca.key exist.
+#      (If not: `./certs/gen-certs.sh ca`.)
+#   2. Per-host client cert issued for the target hostname:
+#      `./certs/gen-certs.sh client <hostname>`
+#   3. Source code rsynced to ~/ultimate-monitoring-agent on the target.
+#   4. Certs (ca.crt + <hostname>.client.{crt,key}) rsynced to
+#      ~/ultimate-monitoring-agent/certs/out/ on the target.
+#
+# Required variable:
+#   uma_collector_url   — e.g. "wss://collector.dc1.internal:9443/v1/ingest"
+#
+# Run:
+#   ansible-playbook -i inventory.agent.ini single-host-agent-only.yml \
+#     --ask-become-pass \
+#     -e uma_collector_url='wss://collector.dc1.internal:9443/v1/ingest'
+#
+# Or set uma_collector_url in the inventory under [uma_agents:vars] and
+# omit the -e.
+
+- name: UMA — agent-only install (build on target)
+  hosts: all
+  gather_facts: true
+  vars:
+    target_user: "{{ ansible_user }}"
+    uma_repo_remote: "/home/{{ target_user }}/ultimate-monitoring-agent"
+    uma_release_dir: "{{ uma_repo_remote }}/target/release"
+    uma_log_level: "info"
+    uma_heartbeat_interval_s: 5
+    uma_re_notify_after_s: 1800
+    uma_recovery_window_s: 60
+    uma_dc: "lab"
+    uma_role: "baremetal"
+    uma_inlet_warn_c: 32.0
+    uma_inlet_critical_c: 36.0
+    uma_inlet_emergency_c: 38.0
+
+  pre_tasks:
+    - name: Sanity — collector URL provided
+      assert:
+        that: uma_collector_url is defined and uma_collector_url | length > 0
+        fail_msg: |
+          Set -e uma_collector_url='wss://<collector-fqdn>:9443/v1/ingest'
+          OR add it to the inventory under [uma_agents:vars].
+
+    - name: Sanity — source + certs present on target
+      stat:
+        path: "{{ item }}"
+      loop:
+        - "{{ uma_repo_remote }}/Cargo.toml"
+        - "{{ uma_repo_remote }}/certs/out/ca.crt"
+        - "{{ uma_repo_remote }}/certs/out/{{ ansible_hostname }}.client.crt"
+        - "{{ uma_repo_remote }}/certs/out/{{ ansible_hostname }}.client.key"
+      register: precheck
+      failed_when: false
+
+    - name: Fail with a clear message if any required file is missing
+      assert:
+        that: precheck.results | map(attribute='stat.exists') | list | min
+        fail_msg: |
+          Missing files on target. Make sure you've:
+            (1) rsynced source to {{ uma_repo_remote }}/
+            (2) issued client cert on the controller:
+                ./certs/gen-certs.sh client {{ ansible_hostname }}
+            (3) rsynced certs/out/ to {{ uma_repo_remote }}/certs/out/
+
+  tasks:
+    # ---------- 1. Build deps + runtime tools ----------
+    - name: Install build deps + runtime tools so all modules activate
+      become: true
+      apt:
+        update_cache: true
+        cache_valid_time: 3600
+        name:
+          - pkg-config
+          - build-essential
+          - libssl-dev
+          - libudev-dev
+          - libdbus-1-dev
+          - libsqlite3-dev
+          - smartmontools
+          - nvme-cli
+          - ethtool
+          - ipmitool
+          - lm-sensors
+          - edac-utils
+          - rasdaemon
+          - pciutils
+          - dmidecode
+          - jq
+          - curl
+
+    # ---------- 2. Rust toolchain (one-time per host) ----------
+    - name: Check for cargo
+      stat:
+        path: "/home/{{ target_user }}/.cargo/bin/cargo"
+      register: cargo_stat
+
+    - name: Install rustup
+      become_user: "{{ target_user }}"
+      shell: |
+        curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable --profile minimal
+      when: not cargo_stat.stat.exists
+      args:
+        creates: "/home/{{ target_user }}/.cargo/bin/cargo"
+
+    # ---------- 3. Build the agent binary only (faster than --workspace) ----------
+    - name: cargo build --release -p uma-agent
+      become_user: "{{ target_user }}"
+      shell: |
+        source $HOME/.cargo/env
+        cargo build --release -p uma-agent
+      args:
+        chdir: "{{ uma_repo_remote }}"
+        executable: /bin/bash
+      register: cargo_out
+      changed_when: "'Compiling' in cargo_out.stderr or 'Compiling' in cargo_out.stdout"
+
+    - name: Confirm agent binary built
+      stat:
+        path: "{{ uma_release_dir }}/monitor-agent"
+      register: bin_stat
+      failed_when: not bin_stat.stat.exists
+
+    # ---------- 4. Install agent binary + dirs + certs ----------
+    - name: Create agent dirs
+      become: true
+      file:
+        path: "{{ item }}"
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+      loop:
+        - /etc/monitor-agent
+        - /var/lib/monitor-agent
+
+    - name: Install agent binary (atomic; works while service is running)
+      become: true
+      copy:
+        src: "{{ uma_release_dir }}/monitor-agent"
+        dest: /usr/local/bin/monitor-agent
+        remote_src: true
+        owner: root
+        group: root
+        mode: "0755"
+
+    - name: Install CA cert
+      become: true
+      copy:
+        src: "{{ uma_repo_remote }}/certs/out/ca.crt"
+        dest: /etc/monitor-agent/ca.crt
+        remote_src: true
+        owner: root
+        group: root
+        mode: "0644"
+
+    - name: Install client cert
+      become: true
+      copy:
+        src: "{{ uma_repo_remote }}/certs/out/{{ ansible_hostname }}.client.crt"
+        dest: /etc/monitor-agent/client.crt
+        remote_src: true
+        owner: root
+        group: root
+        mode: "0644"
+
+    - name: Install client key (mode 0600 — secret)
+      become: true
+      copy:
+        src: "{{ uma_repo_remote }}/certs/out/{{ ansible_hostname }}.client.key"
+        dest: /etc/monitor-agent/client.key
+        remote_src: true
+        owner: root
+        group: root
+        mode: "0600"
+
+    - name: Render agent config (full module set, sourced from group_vars + host_vars)
+      become: true
+      template:
+        src: "{{ playbook_dir }}/templates/agent-config.toml.j2"
+        dest: /etc/monitor-agent/config.toml
+        owner: root
+        group: root
+        mode: "0640"
+
+    - name: Install agent systemd unit
+      become: true
+      copy:
+        src: "{{ uma_repo_remote }}/systemd/monitor-agent.service"
+        dest: /etc/systemd/system/monitor-agent.service
+        remote_src: true
+        owner: root
+        group: root
+        mode: "0644"
+
+    # ---------- 5. Enable + start ----------
+    - name: systemctl daemon-reload
+      become: true
+      systemd:
+        daemon_reload: true
+
+    - name: Enable + restart monitor-agent
+      become: true
+      systemd:
+        name: monitor-agent
+        enabled: true
+        state: restarted
+
+    - name: Brief settle pause
+      pause:
+        seconds: 4
+
+    - name: Show recent agent log lines (verify it connected)
+      become: true
+      shell: journalctl -u monitor-agent -n 25 --no-pager
+      register: agent_log
+      changed_when: false
+    - debug:
+        msg: "{{ agent_log.stdout_lines }}"
+
+    - name: Done
+      debug:
+        msg: |
+          Agent installed on {{ ansible_hostname }} ({{ ansible_default_ipv4.address }}).
+          Pointing at: {{ uma_collector_url }}
+          Look for the new host on the collector's GUI Connectivity tab.

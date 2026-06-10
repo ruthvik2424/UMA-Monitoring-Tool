@@ -1,0 +1,106 @@
+---
+# ============================================================================
+# Defaults applied to every host in [uma_agents].
+# Override per-host in host_vars/<hostname>.yml using uma_modules_overrides.
+# ============================================================================
+
+# Required: where the agent should send alerts.
+# uma_collector_url: "wss://collector.dc1.internal:9443/v1/ingest"
+
+# Behavior
+uma_log_level: info
+uma_heartbeat_interval_s: 5
+uma_re_notify_after_s: 1800
+uma_recovery_window_s: 60
+
+# Per-host metadata (these end up under [tags] in config.toml)
+uma_dc:   "lab"
+uma_role: "baremetal"
+# uma_extra_tags:
+#   cluster: "ceph-prod"
+#   pod:     "p-12"
+
+# ============================================================================
+# Module enable/disable + tuning. Anything not listed uses the agent's
+# Rust-side defaults (also reflected in the template).
+# ============================================================================
+uma_modules:
+
+  # ---- Hardware health, on by default ----
+  nvme:               { enabled: true,  poll_s: 60,  wear_warn_pct: 80, wear_critical_pct: 90, temp_warn_c: 70, temp_critical_c: 80 }
+  disk_smart:         { enabled: true,  poll_s: 300 }
+  memory_ecc:         { enabled: true,  poll_s: 5,   ce_per_hour_warn: 50 }
+  cpu_mce:            { enabled: true }
+  pcie_aer:           { enabled: true,  corrected_per_min_warn: 100 }
+
+  thermal:
+    enabled: true
+    poll_s: 5
+    inlet_warn_c:      32.0
+    inlet_critical_c:  36.0
+    inlet_emergency_c: 38.0
+
+  network_nic:
+    enabled: true
+    flap_window_s:  10
+    flap_threshold: 2
+    counter_poll_s: 5
+    ignore_regex:
+      - "^lo$"
+      - "^docker.*"
+      - "^veth.*"
+      - "^br-.*"
+      - "^cali.*"
+      - "^cni.*"
+      - "^tun.*"
+      - "^tap.*"
+      - "^virbr.*"
+
+  storage_controller: { enabled: true,  poll_s: 15 }
+  storage_io:         { enabled: true,  watch_ceph_osd: true, correlate_window_s: 30 }
+
+  mempressure:
+    enabled: true
+    poll_s: 2
+    psi_some_avg10_warn: 50.0
+    sustain_s: 30
+    oom_storm_count: 3
+    oom_storm_window_s: 300
+
+  oshang:    { enabled: true }
+  boot:      { enabled: true }
+  lifecycle: { enabled: true }
+
+  # syslog_rules: tail /dev/kmsg for arbitrary regex patterns.
+  # If `rules` is omitted (as below), the agent loads 5 built-in defaults:
+  #   scsi_command_timeout, pcie_link_recovery, nic_driver_reset,
+  #   watchdog_warning, acpi_power_event
+  # Add or replace via host_vars.uma_modules_overrides.syslog_rules.rules
+  # (any value here REPLACES the defaults — list merge is not recursive).
+  syslog_rules:
+    enabled: true
+    # rules:
+    #   - { name: "my_extra_rule", regex: "MY_PATTERN", severity: "warning",
+    #       category: "syslog", title: "My title", message: "msg with {match}" }
+
+  # ---- GPU modules — OFF by default. Enable per-host where GPUs exist. ----
+  gpu_nvidia: { enabled: false }
+  gpu_amd:    { enabled: false }
+
+  # ---- BMC modules — OFF by default. Set creds per-host to enable. ----
+  bmc_redfish:
+    enabled: false
+    poll_s: 10
+    ipmi_device: "/dev/ipmi0"
+    redfish_url: ""
+    redfish_username: ""
+    redfish_password: ""
+    redfish_insecure: false
+
+  bmc_eventlog:
+    enabled: false
+    poll_s: 10
+    redfish_url: ""
+    redfish_username: ""
+    redfish_password: ""
+    redfish_insecure: false

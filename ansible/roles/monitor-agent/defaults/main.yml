@@ -1,0 +1,33 @@
+---
+uma_binary_dir: "{{ playbook_dir }}/../target/release"
+uma_certs_dir:  "{{ playbook_dir }}/../certs/out"
+uma_collector_url: "wss://collector.local:9443/v1/ingest"
+uma_log_level: "info"
+uma_heartbeat_interval_s: 5
+uma_re_notify_after_s: 1800
+uma_recovery_window_s: 60
+uma_tags:
+  dc: "{{ inventory_hostname.split('.')[1] | default('unknown') }}"
+  role: "baremetal"
+
+# Per-module defaults — override in group_vars/host_vars when needed.
+uma_inlet_warn_c: 32.0
+uma_inlet_critical_c: 36.0
+uma_inlet_emergency_c: 38.0
+uma_flap_window_s: 10
+uma_flap_threshold: 2
+
+# Install the standard package set so all modules activate. Set false to
+# skip and rely on whatever's already installed (modules degrade gracefully).
+uma_install_apt_tools: true
+uma_apt_tools:
+  - smartmontools     # disk_smart
+  - nvme-cli          # nvme
+  - ethtool           # network_nic counter polling
+  - ipmitool          # thermal inlet, bmc_eventlog fallback
+  - lm-sensors        # thermal hwmon enrichment
+  - edac-utils        # memory_ecc richness
+  - rasdaemon         # memory_ecc / cpu_mce richness
+  - pciutils          # pcie_aer device-name resolution (lspci)
+  - dmidecode         # vendor_detect
+  - jq                # operator convenience

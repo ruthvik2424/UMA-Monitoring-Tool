@@ -1,0 +1,169 @@
+---
+# Fast collector install — no per-target build. Uses pre-built binary from
+# the controller's artifacts/ directory (created by build-and-fetch.yml).
+
+- name: UMA — fast collector install (no rebuild)
+  hosts: uma_collectors
+  gather_facts: true
+  vars:
+    artifacts_dir: "{{ playbook_dir }}/../artifacts"
+    certs_dir: "{{ playbook_dir }}/../certs/out"
+
+  pre_tasks:
+    - name: Sanity — pre-built binary present
+      stat:
+        path: "{{ artifacts_dir }}/monitor-collector"
+      register: coll_artifact
+      delegate_to: localhost
+      become: false
+      run_once: true
+      failed_when: not coll_artifact.stat.exists
+
+    - name: Auto-issue server cert for {{ inventory_hostname }} if missing
+      # `argv` form: each element is one process argument, no shell tokenization.
+      # Required because the workspace path may contain spaces.
+      command:
+        argv: "{{ ['./gen-certs.sh', 'server', inventory_hostname] + (collector_san_extras | default('') | split) }}"
+        chdir: "{{ playbook_dir }}/../certs"
+        creates: "{{ certs_dir }}/{{ inventory_hostname }}.server.crt"
+      delegate_to: localhost
+      become: false
+
+  tasks:
+    - name: Runtime libs
+      become: true
+      apt:
+        update_cache: true
+        cache_valid_time: 3600
+        name:
+          - libsqlite3-0
+          - ca-certificates
+
+    - name: Create monitor-collector system user
+      become: true
+      user:
+        name: monitor-collector
+        system: true
+        shell: /usr/sbin/nologin
+        home: /var/lib/monitor-collector
+        create_home: true
+
+    - name: Create collector dirs
+      become: true
+      file:
+        path: "{{ item }}"
+        state: directory
+        owner: monitor-collector
+        group: monitor-collector
+        mode: "0755"
+      loop:
+        - /etc/monitor-collector
+        - /var/lib/monitor-collector
+
+    - name: Re-chown collector state dir (idempotent)
+      become: true
+      file:
+        path: /var/lib/monitor-collector
+        owner: monitor-collector
+        group: monitor-collector
+        recurse: true
+
+    - name: Push monitor-collector binary
+      become: true
+      copy:
+        src: "{{ artifacts_dir }}/monitor-collector"
+        dest: /usr/local/bin/monitor-collector
+        owner: root
+        group: root
+        mode: "0755"
+
+    - name: Push CA cert
+      become: true
+      copy:
+        src: "{{ certs_dir }}/ca.crt"
+        dest: /etc/monitor-collector/ca.crt
+        owner: root
+        group: monitor-collector
+        mode: "0644"
+
+    - name: Push server cert
+      become: true
+      copy:
+        src: "{{ certs_dir }}/{{ inventory_hostname }}.server.crt"
+        dest: /etc/monitor-collector/server.crt
+        owner: monitor-collector
+        group: monitor-collector
+        mode: "0640"
+
+    - name: Push server key (mode 0600)
+      become: true
+      copy:
+        src: "{{ certs_dir }}/{{ inventory_hostname }}.server.key"
+        dest: /etc/monitor-collector/server.key
+        owner: monitor-collector
+        group: monitor-collector
+        mode: "0600"
+
+    - name: Render collector config
+      become: true
+      copy:
+        dest: /etc/monitor-collector/config.toml
+        owner: monitor-collector
+        group: monitor-collector
+        mode: "0640"
+        content: |
+          # Managed by Ansible — do not edit by hand.
+          bind_ingest = "0.0.0.0:9443"
+          bind_gui    = "0.0.0.0:8443"
+          db_path         = "/var/lib/monitor-collector/collector.sqlite"
+          retention_days  = 30
+          offline_after_s = 10
+          log_level       = "info"
+
+          [tls]
+          ca_cert     = "/etc/monitor-collector/ca.crt"
+          server_cert = "/etc/monitor-collector/server.crt"
+          server_key  = "/etc/monitor-collector/server.key"
+          require_client_cert = true
+
+    - name: Push systemd unit
+      become: true
+      copy:
+        src: "{{ playbook_dir }}/../systemd/monitor-collector.service"
+        dest: /etc/systemd/system/monitor-collector.service
+        owner: root
+        group: root
+        mode: "0644"
+
+    - name: systemctl daemon-reload
+      become: true
+      systemd:
+        daemon_reload: true
+
+    - name: Enable + restart monitor-collector
+      become: true
+      systemd:
+        name: monitor-collector
+        enabled: true
+        state: restarted
+
+    - name: Wait for collector ports
+      wait_for:
+        host: "127.0.0.1"
+        port: "{{ item }}"
+        timeout: 15
+      loop: [9443, 8443]
+
+    - name: Tail recent collector log
+      become: true
+      shell: journalctl -u monitor-collector -n 15 --no-pager
+      register: coll_log
+      changed_when: false
+    - debug:
+        msg: "{{ coll_log.stdout_lines }}"
+
+    - name: Done
+      debug:
+        msg: |
+          Collector running on {{ inventory_hostname }} ({{ ansible_default_ipv4.address }}).
+          GUI: https://{{ ansible_default_ipv4.address }}:8443

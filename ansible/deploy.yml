@@ -1,0 +1,20 @@
+# Push-only playbook. Assumes binaries built (see 00-build.yml or site.yml)
+# and certs issued (see 01-pki.yml). For the full pipeline use site.yml.
+#
+# Inventory groups expected:
+#   uma_collectors  — host(s) that run the collector
+#   uma_agents      — every node that runs the agent
+
+- name: Deploy UMA collector
+  hosts: uma_collectors
+  become: true
+  tags: [deploy, deploy_collector]
+  roles:
+    - monitor-collector
+
+- name: Deploy UMA agents
+  hosts: uma_agents
+  become: true
+  tags: [deploy, deploy_agents]
+  roles:
+    - monitor-agent

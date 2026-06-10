@@ -1,0 +1,9 @@
+---
+- name: reload systemd
+  systemd:
+    daemon_reload: true
+
+- name: restart monitor-collector
+  systemd:
+    name: monitor-collector
+    state: restarted

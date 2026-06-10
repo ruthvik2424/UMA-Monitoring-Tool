@@ -1,0 +1,131 @@
+# UMA deploy.py — example host inventory.
+#
+# Copy this file to deploy-hosts.yaml (sibling of deploy.py) and edit.
+# All you need is one of these to run any of the deploy.py subcommands.
+
+# Where the agents send alerts. Use the IP, NOT a hostname, so agents don't
+# depend on DNS being correct on every box. The IP must appear in
+# `collector_san_extras` below so TLS validates.
+collector_url: "wss://10.240.19.245:9443/v1/ingest"
+
+# Extra DNS names / IPs to add to the collector's server certificate SAN.
+# The collector_url's host MUST be in this list (or be the collector.name).
+collector_san_extras:
+  - 10.240.19.245
+  - LibreNMS-Host
+  - localhost
+  - 127.0.0.1
+
+# How many parallel SSH sessions during agent installs. 10 is safe; bump to
+# 50+ for fleets in the hundreds. Each connection is one local thread.
+parallel: 10
+
+log_level: info
+# Suppress all outbound agent alerts (maintenance window). Same effect as
+# log_level: maintenance (or typo maintainance) in raw config.toml.
+# maintenance: false
+# Local JSON validation endpoint (127.0.0.1 only recommended). GET /v1/debug/snapshot
+# agent_debug_listen: "127.0.0.1:19100"
+
+# ---------------------------------------------------------------------------
+# Collector — exactly one host runs monitor-collector.
+# ---------------------------------------------------------------------------
+collector:
+  name: LibreNMS-Host           # used as the cert CN ("<name>.server.crt")
+  host: 10.240.19.245
+  user: user
+
+# ---------------------------------------------------------------------------
+# Builder — the Linux host where binaries are compiled. Can be the same
+# machine as the collector. Mac controllers can't build the agent (Linux
+# system libs needed), so this MUST be a Linux host.
+# ---------------------------------------------------------------------------
+builder:
+  name: LibreNMS-Host
+  host: 10.240.19.245
+  user: user
+
+# ---------------------------------------------------------------------------
+# Agents — every host that should run monitor-agent. Per-host module
+# settings (BMC creds, GPU enable, extra tags) go here too.
+# ---------------------------------------------------------------------------
+agents:
+  - name: LibreNMS-Host         # cert CN, must be unique
+    host: 10.240.19.245
+    user: user
+    tags:
+      dc: lab
+      role: librenms-host
+    # Optional: extra TOML appended to this host's generated config (thresholds, etc.)
+    # config_append: |
+    #   [modules.thermal]
+    #   inlet_warn_c = 28.0
+
+  - name: C2-DH2-R52-CO-S469
+    host: 10.240.19.246
+    user: user
+    tags:
+      dc: dc1
+      rack: R52
+      role: ceph-osd
+    # Enable iLO Redfish on this host (BMC-monitoring modules).
+    # Set HPE_ILO_PASSWORD in your shell env BEFORE running deploy.py
+    # (export HPE_ILO_PASSWORD=...) — never commit the password here.
+    bmc:
+      url: "https://10.232.12.220"
+      username: monitor
+      password_env: HPE_ILO_PASSWORD
+      insecure: true            # iLO uses self-signed certs
+
+  - name: C2-DH2-R43-GP-S393    # GPU host
+    host: 10.240.19.247
+    user: user
+    tags:
+      dc: dc1
+      rack: R43
+      role: ai-training
+    gpu_nvidia: true            # turns on the gpu_nvidia module
+    bmc:
+      url: "https://10.232.12.221"
+      username: monitor
+      password_env: HPE_ILO_PASSWORD
+      insecure: true
+
+  # ... add as many as you want ...
+
+# ---------------------------------------------------------------------------
+# Outbound webhooks — Slack, Google Chat, or any HTTP endpoint.
+# Each entry POSTs a formatted alert. Failures are warned but never block
+# the GUI fan-out. Get the URL from:
+#   Slack: Apps → Incoming Webhooks → Add to channel
+#   GChat: Space → Manage webhooks → Add (gives a chat.googleapis.com URL)
+#
+# Treat the URL as a SECRET — anyone with it can post to your channel.
+# ---------------------------------------------------------------------------
+webhooks:
+  # Example 1: Slack channel for the on-call rotation
+  # - name: noc-slack
+  #   kind: slack
+  #   url: "https://hooks.slack.com/services/T01XXXXX/B02YYYYYY/abcdefghijklmnopqrstuvwx"
+  #   severity_min: warning            # info | warning | critical
+  #   states: [firing]                 # default in deploy-rendered collector.toml
+  #   notify_on_resolved: false       # OR true to POST resolves as well as fires
+  #   host_filter: ".*"                # regex against alert.host (optional)
+  #   category_filter: ".*"
+  #   rate_limit_per_min: 60
+  #   gui_url: "https://10.240.19.245:8443"
+
+  # Example 2: Google Chat space for critical-only escalation
+  # - name: oncall-gchat
+  #   kind: google_chat
+  #   url: "https://chat.googleapis.com/v1/spaces/AAAAAAAA/messages?key=...&token=..."
+  #   severity_min: critical
+  #   states: [firing]
+  #   gui_url: "https://10.240.19.245:8443"
+
+  # Example 3: generic JSON POST (alert as-is) for custom pipelines
+  # - name: internal-pipeline
+  #   kind: generic_json
+  #   url: "https://alerts.internal.example.com/ingest"
+  #   severity_min: warning
+  #   notify_on_resolved: true       # shorthand to add resolved deliveries

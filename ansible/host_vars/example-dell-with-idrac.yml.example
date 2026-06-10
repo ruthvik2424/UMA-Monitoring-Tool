@@ -1,0 +1,25 @@
+---
+# EXAMPLE: Dell node with iDRAC. Copy → host_vars/<hostname>.yml.
+
+uma_dc:   "dc2"
+uma_role: "ceph-osd"
+
+uma_modules_overrides:
+
+  bmc_redfish:
+    enabled: true
+    redfish_url: "https://10.232.13.45"
+    redfish_username: "monitor"
+    redfish_password: "{{ vault_dell_idrac_password }}"
+    redfish_insecure: true
+
+  bmc_eventlog:
+    enabled: true
+    redfish_url: "https://10.232.13.45"
+    redfish_username: "monitor"
+    redfish_password: "{{ vault_dell_idrac_password }}"
+    redfish_insecure: true
+
+  # Bigger ceph_osd correlation window — Dell PERC takes ~45s to hard-fault.
+  storage_io:
+    correlate_window_s: 60

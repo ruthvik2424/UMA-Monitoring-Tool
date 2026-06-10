@@ -1,0 +1,78 @@
+---
+# Uninstall UMA from the fleet. Stops services, removes binaries, configs,
+# certs, and (optionally) the SQLite alert history.
+#
+# By default keeps the SQLite history database (so you can re-deploy without
+# losing the audit log). Pass `-e uma_purge_data=true` to wipe everything.
+#
+# Run:
+#   ansible-playbook -i inventory.ini uninstall.yml
+#   ansible-playbook -i inventory.ini uninstall.yml -e uma_purge_data=true
+
+- name: Uninstall UMA agent from agent hosts
+  hosts: uma_agents
+  become: true
+  tasks:
+    - name: Stop + disable monitor-agent
+      systemd:
+        name: monitor-agent
+        state: stopped
+        enabled: false
+      failed_when: false
+
+    - name: Remove agent files
+      file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /usr/local/bin/monitor-agent
+        - /etc/systemd/system/monitor-agent.service
+        - /etc/monitor-agent
+
+    - name: Remove agent state dir (purge mode only)
+      file:
+        path: /var/lib/monitor-agent
+        state: absent
+      when: uma_purge_data | default(false) | bool
+
+    - name: Reload systemd
+      systemd:
+        daemon_reload: true
+
+- name: Uninstall UMA collector from collector hosts
+  hosts: uma_collectors
+  become: true
+  tasks:
+    - name: Stop + disable monitor-collector
+      systemd:
+        name: monitor-collector
+        state: stopped
+        enabled: false
+      failed_when: false
+
+    - name: Remove collector files
+      file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /usr/local/bin/monitor-collector
+        - /etc/systemd/system/monitor-collector.service
+        - /etc/monitor-collector
+
+    - name: Remove collector state dir (purge mode only)
+      file:
+        path: /var/lib/monitor-collector
+        state: absent
+      when: uma_purge_data | default(false) | bool
+
+    - name: Remove collector user (purge mode only)
+      user:
+        name: monitor-collector
+        state: absent
+        remove: true
+      when: uma_purge_data | default(false) | bool
+      failed_when: false
+
+    - name: Reload systemd
+      systemd:
+        daemon_reload: true

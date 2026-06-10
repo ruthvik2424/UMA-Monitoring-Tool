@@ -1,0 +1,45 @@
+---
+# Build the agent + collector binaries on the controller (or a build host).
+# Skipped if both binaries already exist and are newer than any source file.
+#
+# Run on a host that has the Rust toolchain + system libs installed:
+#   sudo apt-get install -y pkg-config build-essential libssl-dev \
+#     libudev-dev libdbus-1-dev libsqlite3-dev
+#   curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+
+- name: Build UMA binaries
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tags: [build]
+  tasks:
+    - name: Check that cargo is available
+      command: cargo --version
+      register: cargo_check
+      changed_when: false
+      failed_when: cargo_check.rc != 0
+
+    - name: cargo build --release --workspace
+      command: cargo build --release --workspace
+      args:
+        chdir: "{{ uma_repo_dir }}"
+      register: cargo_build
+      changed_when: "'Compiling' in cargo_build.stderr or 'Compiling' in cargo_build.stdout"
+
+    - name: Verify monitor-agent binary
+      stat:
+        path: "{{ uma_binary_dir }}/monitor-agent"
+      register: agent_bin
+      failed_when: not agent_bin.stat.exists
+
+    - name: Verify monitor-collector binary
+      stat:
+        path: "{{ uma_binary_dir }}/monitor-collector"
+      register: collector_bin
+      failed_when: not collector_bin.stat.exists
+
+    - name: Report binary sizes
+      debug:
+        msg: |
+          monitor-agent:     {{ (agent_bin.stat.size / 1024 / 1024) | round(1) }} MB
+          monitor-collector: {{ (collector_bin.stat.size / 1024 / 1024) | round(1) }} MB
