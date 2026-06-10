@@ -29,14 +29,14 @@ uma_modules_overrides:
   # ENABLE iLO Redfish — sensors + event log push.
   bmc_redfish:
     enabled: true
-    redfish_url: "https://10.232.12.220"
+    redfish_url: "https://10.0.0.102"
     redfish_username: "monitor"
     redfish_password: "{{ vault_hpe_ilo_password }}"   # pulled from vault.yml
     redfish_insecure: true                              # self-signed iLO cert
 
   bmc_eventlog:
     enabled: true
-    redfish_url: "https://10.232.12.220"
+    redfish_url: "https://10.0.0.102"
     redfish_username: "monitor"
     redfish_password: "{{ vault_hpe_ilo_password }}"
     redfish_insecure: true
